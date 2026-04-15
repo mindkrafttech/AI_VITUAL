@@ -1,0 +1,1796 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Memory Palace – Diamond Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <style>
+      body {
+        margin: 0;
+        /* Atmospheric Depth: Navy at top → Galactic Purple at bottom on scroll */
+        background: #0B1120;
+        overflow-x: hidden;
+        overflow-y: auto;
+        color: #fff;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        user-select: none;
+      }
+
+      .palace-header {
+        padding: 2rem 4rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        z-index: 10;
+      }
+
+      .palace-header h1 {
+        margin: 0;
+        font-weight: 500;
+        letter-spacing: 1px;
+        color: var(--color-lavender);
+        text-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      }
+
+      /* Navigation Button styling */
+      .back-btn {
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+        border: 1px solid rgba(255,255,255,0.2);
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        cursor: pointer;
+        text-decoration: none;
+        transition: all 0.2s ease;
+        z-index: 100;
+      }
+
+      .back-btn:hover {
+        background: rgba(255, 255, 255, 0.15);
+        border-color: rgba(255,255,255,0.4);
+      }
+
+      /* The Main Stage */
+      .memory-palace-stage {
+        perspective: 1200px; /* High depth for the 'Palace' feel */
+        width: 100%;
+        height: 80vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        background: #0B1120; /* Matching your dark theme */
+      }
+
+      /* The Rotating Ring */
+      .ring-container {
+        position: relative;
+        width: 100%; /* Ensures container does not squash the 3D transforms */
+        height: 480px;
+        transform-style: preserve-3d;
+        transition: transform 0.7s cubic-bezier(0.19, 1, 0.22, 1);
+      }
+
+      /* The Cards */
+      .learning-card {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 320px;
+        height: 480px;
+        backface-visibility: hidden; /* Keeps it sharp during rotation */
+        border-radius: 20px;
+        background: rgba(30, 41, 59, 0.8);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 24px;
+        
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+        
+        /* Gsap will handle the transforms, but we keep the transitions for visuals */
+        transition: border-color 0.4s ease, box-shadow 0.4s ease, filter 0.4s ease;
+        box-sizing: border-box;
+        --glow-color-rgb: 34, 211, 238; /* Default Cyan */
+      }
+
+      /* Using CSS variables to change the glow dynamically */
+      .learning-card[data-mastery="high"] {
+        --glow-color-rgb: 34, 211, 238; /* Vibrant Cyan */
+      }
+
+      .learning-card[data-mastery="medium"] {
+        --glow-color-rgb: 59, 130, 246; /* Soft Blue */
+      }
+
+      .learning-card[data-mastery="low"] {
+        --glow-color-rgb: 251, 191, 36; /* Warm Amber */
+      }
+
+      /* Hover and Active states */
+      .learning-card:hover {
+        box-shadow: 
+          0 20px 40px rgba(0, 0, 0, 0.6),
+          0 0 30px rgba(var(--glow-color-rgb), 0.4),
+          inset 0 0 0 1px rgba(var(--glow-color-rgb), 0.6);
+        border-color: rgba(var(--glow-color-rgb), 0.5);
+      }
+
+      .learning-card.active {
+        border-color: rgba(var(--glow-color-rgb), 0.8);
+        box-shadow: 0 0 20px rgba(var(--glow-color-rgb), 0.4), inset 0 0 0 1px rgba(var(--glow-color-rgb), 0.6);
+      }
+
+      .learning-card.active .memory-title {
+        color: #fff;
+        text-shadow: 0 0 15px rgba(255, 255, 255, 0.6);
+      }
+      
+      .learning-card.active .mastery-score {
+        animation: scorePulse 2s cubic-bezier(0.19, 1, 0.22, 1) infinite;
+        color: #fff;
+        background: rgba(var(--glow-color-rgb), 0.3);
+        box-shadow: 0 0 15px rgba(var(--glow-color-rgb), 0.5), inset 0 0 10px rgba(255, 255, 255, 0.3);
+        border-color: rgba(var(--glow-color-rgb), 0.8);
+      }
+
+      @keyframes scorePulse {
+        0%, 100% { box-shadow: 0 0 10px rgba(var(--glow-color-rgb), 0.4), inset 0 0 5px rgba(255, 255, 255, 0.1); }
+        50% { box-shadow: 0 0 25px rgba(var(--glow-color-rgb), 0.8), inset 0 0 15px rgba(255, 255, 255, 0.4); transform: scale(1.05); }
+      }
+
+      /* Dynamic Lighting Sweep on Active Card */
+      .learning-card.active::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 50%;
+        height: 100%;
+        background: linear-gradient(
+          to right,
+          rgba(255, 255, 255, 0) 0%,
+          rgba(255, 255, 255, 0.4) 50%,
+          rgba(255, 255, 255, 0) 100%
+        );
+        transform: skewX(-20deg);
+        animation: lightSweep 1.5s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+        pointer-events: none;
+        border-radius: 20px;
+        z-index: 10;
+      }
+
+      @keyframes lightSweep {
+        0% { left: -100%; }
+        100% { left: 200%; }
+      }
+
+      /* "Crystal" Overlay styling */
+      .learning-card::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 60%);
+        opacity: 0.5;
+        pointer-events: none;
+        border-radius: 20px;
+      }
+
+      .memory-content {
+        position: relative;
+        z-index: 2;
+        transform: translateY(20px);
+        opacity: 0.8;
+        transition: all 0.4s ease;
+      }
+
+      .learning-card:hover .memory-content,
+      .learning-card.active .memory-content {
+        transform: translateY(0);
+        opacity: 1;
+      }
+
+      .memory-date {
+        font-size: 0.8rem;
+        color: var(--color-cyan);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 0.5rem;
+      }
+      .memory-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin: 0 0 1rem 0;
+        color: #fff;
+        transition: color 0.4s ease, text-shadow 0.4s ease;
+      }
+      .memory-desc {
+        font-size: 0.95rem;
+        color: var(--color-lavender);
+        line-height: 1.5;
+        margin: 0;
+      }
+      .mastery-score {
+        position: absolute;
+        top: 2rem;
+        right: 2rem;
+        background: rgba(var(--glow-color-rgb), 0.15);
+        color: rgb(var(--glow-color-rgb));
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-weight: 600;
+        font-size: 0.9rem;
+        border: 1px solid rgba(var(--glow-color-rgb), 0.4);
+        z-index: 5;
+      }
+
+      /* Left/Right Interactive Controls */
+      .nav-btn {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.2);
+        backdrop-filter: blur(10px);
+        color: #fff;
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        font-size: 24px;
+        cursor: pointer;
+        z-index: 20;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        transition: all 0.3s ease;
+      }
+      .nav-btn:hover {
+        background: rgba(255, 255, 255, 0.15);
+        border-color: rgba(34, 211, 238, 0.5);
+        color: var(--color-cyan);
+        box-shadow: 0 0 20px rgba(34, 211, 238, 0.2);
+      }
+      .nav-btn.left { left: 5vw; }
+      .nav-btn.right { right: 5vw; }
+
+      /* Scientist Floating Nodes in the Archive Cloud */
+      .scientist-node {
+        position: absolute;
+        color: var(--color-cyan);
+        background: rgba(30, 41, 59, 0.6);
+        border: 1px solid rgba(34, 211, 238, 0.3);
+        padding: 0.5rem 1rem;
+        border-radius: 50px;
+        backdrop-filter: blur(8px);
+        font-size: 0.85rem;
+        font-weight: 500;
+        pointer-events: none;
+        z-index: 1;
+        box-shadow: 0 0 10px rgba(34, 211, 238, 0.2);
+      }
+
+      /* --- Scientist Research Archive Gallery --- */
+      .research-gallery {
+        padding: 4rem;
+        max-width: 1400px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        grid-auto-rows: min-content;
+        gap: 2rem;
+        /* Masonry-like behavior using grid with align-items start */
+        align-items: start;
+        overflow-y: auto;
+        height: 100%;
+        padding-bottom: 8rem;
+      }
+
+      .research-gallery::-webkit-scrollbar {
+        width: 8px;
+      }
+
+      .research-gallery::-webkit-scrollbar-thumb {
+        background: rgba(34, 211, 238, 0.3);
+        border-radius: 4px;
+      }
+
+      .gallery-header {
+        width: 100%;
+        text-align: center;
+        margin: 2rem 0;
+      }
+      
+      .gallery-header h2 {
+        font-size: 2rem;
+        color: var(--color-cyan);
+        font-weight: 500;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+      }
+
+      /* Scientist Data Card */
+      .scientist-card {
+        background: rgba(15, 23, 42, 0.7);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        padding: 1.5rem;
+        color: #E2E8F0;
+        position: relative;
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        transform-style: preserve-3d;
+        cursor: pointer;
+      }
+
+      /* Glowing Neon Save Marker overlay */
+      .scientist-card::before {
+        content: '';
+        position: absolute;
+        inset: -2px;
+        border-radius: 18px;
+        background: linear-gradient(45deg, transparent, var(--color-cyan), transparent);
+        z-index: -1;
+        opacity: 0;
+        transition: opacity 0.4s ease;
+      }
+
+      /* 3D Antigravity Hover Tilt */
+      .scientist-card:hover {
+        transform: translateY(-10px) rotateX(5deg) rotateY(-5deg);
+        box-shadow: 
+          10px 15px 30px rgba(0, 0, 0, 0.5),
+          -5px -5px 20px rgba(34, 211, 238, 0.15);
+        border-color: rgba(34, 211, 238, 0.5);
+      }
+
+      .scientist-card:hover::before {
+        opacity: 0.8;
+      }
+
+      .scientist-name {
+        font-size: 1.3rem;
+        font-weight: 600;
+        color: #fff;
+        margin: 0 0 0.5rem 0;
+      }
+
+      .scientist-field {
+        font-size: 0.85rem;
+        color: var(--color-lavender);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 1rem;
+        display: inline-block;
+        border-bottom: 1px solid rgba(34, 211, 238, 0.3);
+        padding-bottom: 0.2rem;
+      }
+
+      .scientist-notes {
+        font-size: 0.95rem;
+        line-height: 1.6;
+        color: rgba(226, 232, 240, 0.9);
+        margin-bottom: 1.5rem;
+      }
+
+      /* Particle Share Button */
+      .share-btn {
+        background: transparent;
+        border: 1px solid rgba(34, 211, 238, 0.4);
+        color: var(--color-cyan);
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .share-btn:hover {
+        background: rgba(34, 211, 238, 0.1);
+        box-shadow: 0 0 15px rgba(34, 211, 238, 0.3);
+      }
+
+      /* Small particle explosion class injected via JS */
+      .burst-particle {
+        position: absolute;
+        width: 6px;
+        height: 6px;
+        background: #fff;
+        border-radius: 50%;
+        pointer-events: none;
+        box-shadow: 0 0 10px #fff, 0 0 20px var(--color-cyan);
+        z-index: 50;
+      }
+
+      /* Nebula Ripple Effect */
+      .nebula-ripple {
+        position: absolute;
+        top: 50%; left: 50%;
+        width: 600px; height: 600px;
+        transform: translate(-50%, -50%);
+        border-radius: 50%;
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      /* Multi-Page Horizon Nav */
+      .multi-page-horizon {
+        display: flex;
+        gap: 1.5rem;
+        align-items: center;
+        margin: 0 2rem;
+      }
+      .page-tab {
+        background: transparent;
+        color: rgba(255,255,255,0.6);
+        border: none;
+        padding: 0.5rem 0;
+        font-size: 1.05rem;
+        font-weight: 500;
+        cursor: pointer;
+        position: relative;
+        transition: color 0.3s ease;
+      }
+      .page-tab::after {
+        content: '';
+        position: absolute;
+        bottom: -5px; left: 0; width: 100%; height: 2px;
+        background: var(--color-cyan);
+        transform: scaleX(0);
+        transition: transform 0.3s ease;
+        transform-origin: left center;
+      }
+      .page-tab:hover {
+        color: #fff;
+      }
+      .page-tab.active {
+        color: var(--color-cyan);
+      }
+      .page-tab.active::after {
+        transform: scaleX(1);
+      }
+      .hidden-page-item {
+        display: none !important;
+      }
+
+      /* --- Horizon Scroll Layout --- */
+      .horizon-wrapper {
+        width: 100vw;
+        overflow: hidden;
+        padding-bottom: 2rem;
+      }
+      .horizon-scroll-container {
+        display: flex;
+        overflow-x: auto;
+        scroll-snap-type: x mandatory;
+        scroll-behavior: smooth;
+        width: 100%;
+        -webkit-overflow-scrolling: touch;
+      }
+      .horizon-scroll-container::-webkit-scrollbar { display: none; }
+      .horizon-scroll-container { -ms-overflow-style: none; scrollbar-width: none; }
+      
+      .horizon-page {
+        flex: 0 0 100vw;
+        width: 100vw;
+        scroll-snap-align: center;
+        padding: 0 4rem;
+        box-sizing: border-box;
+      }
+      
+      .scientist-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 2rem;
+        align-items: start;
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+
+      /* --- News Stream Drawer --- */
+      .news-drawer {
+        position: fixed;
+        right: -400px;
+        top: 0;
+        width: 350px;
+        height: 100vh;
+        background: rgba(15, 23, 42, 0.95);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border-left: 1px solid rgba(34, 211, 238, 0.3);
+        z-index: 9999;
+        transition: right 0.4s cubic-bezier(0.19, 1, 0.22, 1);
+        display: flex;
+        flex-direction: column;
+        box-shadow: -10px 0 30px rgba(0, 0, 0, 0.8);
+      }
+      .news-drawer.open {
+        right: 0;
+      }
+      .news-header {
+        padding: 1.5rem;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .news-header h3 {
+        margin: 0;
+        font-size: 1.1rem;
+        color: var(--color-cyan);
+        font-weight: 600;
+        letter-spacing: 1px;
+      }
+      .close-news-btn {
+        background: transparent;
+        border: none;
+        color: #fff;
+        font-size: 1.5rem;
+        cursor: pointer;
+        opacity: 0.6;
+        transition: opacity 0.2s;
+      }
+      .close-news-btn:hover {
+        opacity: 1;
+        color: #ef4444;
+      }
+      .news-feed {
+        padding: 1.5rem;
+        overflow-y: auto;
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 1.2rem;
+      }
+      .news-feed::-webkit-scrollbar { width: 6px; }
+      .news-feed::-webkit-scrollbar-thumb { background: rgba(34,211,238,0.3); border-radius: 3px; }
+      
+      .news-card {
+        background: rgba(30, 41, 59, 0.6);
+        border: 1px solid rgba(255,255,255,0.05);
+        border-radius: 12px;
+        padding: 1rem;
+        transition: transform 0.2s, box-shadow 0.2s;
+      }
+      .news-card:hover {
+        transform: translateY(-2px);
+        border-color: rgba(34, 211, 238, 0.4);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+      }
+      .news-category {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        color: #a78bfa;
+        letter-spacing: 1px;
+        margin-bottom: 0.4rem;
+        display: block;
+      }
+      .news-card h4 {
+        margin: 0 0 0.5rem 0;
+        font-size: 1rem;
+        color: #fff;
+      }
+      .news-card p {
+        margin: 0;
+        font-size: 0.85rem;
+        color: rgba(226, 232, 240, 0.8);
+        line-height: 1.5;
+      }
+      
+      .toggle-news-btn {
+        position: fixed;
+        right: 2rem;
+        bottom: 2rem;
+        background: rgba(15, 23, 42, 0.9);
+        border: 1px solid rgba(34, 211, 238, 0.4);
+        color: var(--color-cyan);
+        padding: 0.75rem 1.5rem;
+        border-radius: 30px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        z-index: 9998;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        transition: all 0.3s ease;
+      }
+      .toggle-news-btn:hover {
+        background: rgba(34, 211, 238, 0.1);
+        box-shadow: 0 0 20px rgba(34, 211, 238, 0.3);
+      }
+      .pulse-dot {
+        width: 8px;
+        height: 8px;
+        background: #ef4444;
+        border-radius: 50%;
+        box-shadow: 0 0 8px #ef4444;
+        animation: pulseRed 2s infinite;
+      }
+      @keyframes pulseRed {
+        0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+        70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+      }
+
+      /* Background Data Wave */
+      .data-wave-container {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 30vh;
+        pointer-events: none;
+        z-index: 0;
+        opacity: 0.3;
+        overflow: hidden;
+      }
+      .data-wave-path {
+        fill: none;
+        stroke: var(--color-cyan);
+        stroke-width: 2;
+        vector-effect: non-scaling-stroke;
+        filter: drop-shadow(0 0 8px rgba(34,211,238,0.8));
+      }
+
+
+      /* --- Scientist Fixed Grid (Visual Stability) --- */
+      .scientist-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 1.5rem;
+        align-items: stretch;
+        max-width: 1400px;
+        margin: 0 auto;
+        padding-bottom: 2rem;
+      }
+      .scientist-box {
+        background: rgba(30, 41, 59, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        padding: 1.5rem;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+      }
+      .scientist-box:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+        border-color: rgba(34, 211, 238, 0.3);
+      }
+
+
+      /* --- High-Contrast Atomic News Theme --- */
+      .learning-card.atomic-news-card,
+      .learning-card.future-tech-card {
+        border-color: #a78bfa;
+        background: rgba(46, 16, 101, 0.7); /* Deep purple tinted background */
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(167, 139, 250, 0.4);
+        --glow-color-rgb: 167, 139, 250; /* neon purple glow */
+      }
+      .learning-card.atomic-news-card.active,
+      .learning-card.future-tech-card.active {
+        box-shadow: 0 0 40px rgba(167, 139, 250, 0.7);
+        border-color: #c084fc;
+      }
+      .learning-card.atomic-news-card .memory-title,
+      .learning-card.future-tech-card .memory-title {
+        color: #e9d5ff;
+        text-shadow: 0 0 8px rgba(167, 139, 250, 0.6);
+      }
+
+
+      /* --- Database Integration Animation Syncs --- */
+      @keyframes teslaPulse {
+        0% { box-shadow: 0 0 10px rgba(167, 139, 250, 0.2); border-color: rgba(167, 139, 250, 0.4); }
+        50% { box-shadow: 0 0 40px rgba(167, 139, 250, 0.8), inset 0 0 20px rgba(167, 139, 250, 0.4); border-color: rgba(192, 132, 252, 1); }
+        100% { box-shadow: 0 0 10px rgba(167, 139, 250, 0.2); border-color: rgba(167, 139, 250, 0.4); }
+      }
+      .tesla-card:hover {
+        animation: teslaPulse 1.5s infinite ease-in-out;
+      }
+      
+      @keyframes newtonMasteryGlow {
+        0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.7); }
+        70% { transform: scale(1.1); box-shadow: 0 0 0 15px rgba(34, 211, 238, 0); }
+        100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(34, 211, 238, 0); }
+      }
+      .newton-mastery-ping {
+        animation: newtonMasteryGlow 2s infinite ease-in-out;
+        border: 2px solid #22D3EE;
+      }
+
+
+      /* Mastery Glow for 100% Achievements */
+      .mastery-pulse-100 {
+        border: 2px solid #22D3EE; /* Cyan border */
+        box-shadow: 0 0 20px rgba(34, 211, 238, 0.4);
+        animation: mastery-glow 2s infinite ease-in-out;
+      }
+      
+      @keyframes mastery-glow {
+        0% { transform: scale(1); box-shadow: 0 0 10px rgba(34, 211, 238, 0.2); }
+        50% { transform: scale(1.02); box-shadow: 0 0 25px rgba(34, 211, 238, 0.6); }
+        100% { transform: scale(1); box-shadow: 0 0 10px rgba(34, 211, 238, 0.2); }
+      }
+      
+      /* Background Data Wave */
+      .data-wave-container {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 30vh;
+        pointer-events: none;
+        z-index: 0;
+        opacity: 0.3;
+        overflow: hidden;
+      }
+      .data-wave-path {
+        fill: none;
+        stroke: var(--color-cyan);
+        stroke-width: 2;
+        vector-effect: non-scaling-stroke;
+        filter: drop-shadow(0 0 8px rgba(34,211,238,0.8));
+      }
+
+
+      /* --- Scientist Fixed Grid (Visual Stability) --- */
+      .scientist-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 1.5rem;
+        align-items: stretch;
+        max-width: 1400px;
+        margin: 0 auto;
+        padding-bottom: 2rem;
+      }
+      .scientist-box {
+        background: rgba(30, 41, 59, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        padding: 1.5rem;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+      }
+      .scientist-box:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+        border-color: rgba(34, 211, 238, 0.3);
+      }
+
+
+      /* --- High-Contrast Atomic News Theme --- */
+      .learning-card.atomic-news-card,
+      .learning-card.future-tech-card {
+        border-color: #a78bfa;
+        background: rgba(46, 16, 101, 0.7); /* Deep purple tinted background */
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(167, 139, 250, 0.4);
+        --glow-color-rgb: 167, 139, 250; /* neon purple glow */
+      }
+      .learning-card.atomic-news-card.active,
+      .learning-card.future-tech-card.active {
+        box-shadow: 0 0 40px rgba(167, 139, 250, 0.7);
+        border-color: #c084fc;
+      }
+      .learning-card.atomic-news-card .memory-title,
+      .learning-card.future-tech-card .memory-title {
+        color: #e9d5ff;
+        text-shadow: 0 0 8px rgba(167, 139, 250, 0.6);
+      }
+
+
+      /* --- Database Integration Animation Syncs --- */
+      @keyframes teslaPulse {
+        0% { box-shadow: 0 0 10px rgba(167, 139, 250, 0.2); border-color: rgba(167, 139, 250, 0.4); }
+        50% { box-shadow: 0 0 40px rgba(167, 139, 250, 0.8), inset 0 0 20px rgba(167, 139, 250, 0.4); border-color: rgba(192, 132, 252, 1); }
+        100% { box-shadow: 0 0 10px rgba(167, 139, 250, 0.2); border-color: rgba(167, 139, 250, 0.4); }
+      }
+      .tesla-card:hover {
+        animation: teslaPulse 1.5s infinite ease-in-out;
+      }
+      
+      @keyframes newtonMasteryGlow {
+        0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.7); }
+        70% { transform: scale(1.1); box-shadow: 0 0 0 15px rgba(34, 211, 238, 0); }
+        100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(34, 211, 238, 0); }
+      }
+      .newton-mastery-ping {
+        animation: newtonMasteryGlow 2s infinite ease-in-out;
+        border: 2px solid #22D3EE;
+      }
+
+
+      /* Mastery Glow for 100% Achievements */
+      .mastery-pulse-100 {
+        border: 2px solid #22D3EE; /* Cyan border */
+        box-shadow: 0 0 20px rgba(34, 211, 238, 0.4);
+        animation: mastery-glow 2s infinite ease-in-out;
+      }
+      
+      @keyframes mastery-glow {
+        0% { transform: scale(1); box-shadow: 0 0 10px rgba(34, 211, 238, 0.2); }
+        50% { transform: scale(1.02); box-shadow: 0 0 25px rgba(34, 211, 238, 0.6); }
+        100% { transform: scale(1); box-shadow: 0 0 10px rgba(34, 211, 238, 0.2); }
+      }
+
+
+      /* --- Live Stream Sync Indicator --- */
+      .live-stream-ticker {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: rgba(167, 139, 250, 0.15);
+        border: 1px solid rgba(192, 132, 252, 0.5);
+        border-radius: 8px;
+        padding: 8px 16px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        z-index: 9999;
+        pointer-events: none;
+        backdrop-filter: blur(10px);
+        box-shadow: 0 0 15px rgba(167, 139, 250, 0.3);
+        opacity: 0;
+        transition: opacity 0.5s ease;
+      }
+      .live-stream-ticker.visible {
+        opacity: 1;
+      }
+      .live-indicator {
+        width: 8px;
+        height: 8px;
+        background-color: #c084fc;
+        border-radius: 50%;
+        box-shadow: 0 0 8px #c084fc;
+        animation: blink 1.5s infinite;
+      }
+      .live-text {
+        color: #e9d5ff;
+        font-family: 'Inter', sans-serif;
+        font-size: 0.8rem;
+        font-weight: 600;
+        letter-spacing: 1px;
+      }
+      
+      @keyframes blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.3; }
+      }
+
+    </style>
+  </head>
+  <body>
+    
+    <header class="palace-header">
+      <h1>The Memory Palace</h1>
+
+      <!-- Multi-Page Horizon Nav -->
+      <div class="multi-page-horizon">
+        <button class="page-tab active" onclick="switchPage('page1', this)">Historical Giants</button>
+        <button class="page-tab" onclick="switchPage('page2', this)">Modern Mastery</button>
+        <button class="page-tab" onclick="switchPage('page3', this)">Atomic Future</button>
+      </div>
+
+      <div style="display:flex;gap:0.6rem;align-items:center;flex-wrap:wrap;">
+        <!-- Context-Aware Mode Controls -->
+        <button class="back-btn mode-btn" style="font-size:0.78rem;padding:0.5rem 1rem;border-color:rgba(34,211,238,0.4);color:var(--color-cyan);" onclick="window.setNebulaMode?.('biology')" title="Biology Mode">🧬 Biology</button>
+        <button class="back-btn mode-btn" style="font-size:0.78rem;padding:0.5rem 1rem;border-color:rgba(99,102,241,0.4);color:#818cf8;" onclick="window.setNebulaMode?.('physics')" title="Physics Mode">⚛️ Physics</button>
+        <button class="back-btn mode-btn" style="font-size:0.78rem;padding:0.5rem 1rem;border-color:rgba(139,92,246,0.5);color:#a78bfa;" onclick="window.setNebulaMode?.('frustration')" title="I'm frustrated — calm the nebula">🫁 Calm Focus</button>
+        <button class="back-btn mode-btn" style="font-size:0.78rem;padding:0.5rem 1rem;" onclick="window.setNebulaMode?.('default')" title="Default">✦ Default</button>
+        <a href="workspace.html" class="back-btn">Return to Workspace</a>
+      </div>
+    </header>
+
+    <main class="memory-palace-stage" id="palaceContainer">
+      <!-- GPU-Accelerated CSS Neural Background (complements Three.js nebula) -->
+      
+      <!-- Data Wave Graph -->
+      <div class="data-wave-container">
+        <svg id="dataWaveSvg" width="100%" height="100%" viewBox="0 0 1000 100" preserveAspectRatio="none">
+           <path id="dataWaveLine" class="data-wave-path" d="M0,50 L1000,50"></path>
+        </svg>
+      </div>
+
+      <div class="neural-background">
+        <div class="data-grain" style="left:5%;animation-delay:0s;animation-duration:18s"></div>
+        <div class="data-grain" style="left:12%;animation-delay:2s;animation-duration:22s"></div>
+        <div class="data-grain" style="left:20%;animation-delay:4s;animation-duration:16s"></div>
+        <div class="data-grain" style="left:28%;animation-delay:1s;animation-duration:24s"></div>
+        <div class="data-grain" style="left:35%;animation-delay:6s;animation-duration:20s"></div>
+        <div class="data-grain" style="left:42%;animation-delay:3s;animation-duration:19s"></div>
+        <div class="data-grain" style="left:50%;animation-delay:0.5s;animation-duration:21s"></div>
+        <div class="data-grain" style="left:57%;animation-delay:5s;animation-duration:17s"></div>
+        <div class="data-grain" style="left:63%;animation-delay:7s;animation-duration:23s"></div>
+        <div class="data-grain" style="left:70%;animation-delay:2.5s;animation-duration:25s"></div>
+        <div class="data-grain" style="left:77%;animation-delay:4.5s;animation-duration:15s"></div>
+        <div class="data-grain" style="left:84%;animation-delay:1.5s;animation-duration:20s"></div>
+        <div class="data-grain" style="left:91%;animation-delay:8s;animation-duration:18s"></div>
+        <div class="data-grain" style="left:8%;top:60%;animation-delay:3.5s;animation-duration:22s"></div>
+        <div class="data-grain" style="left:25%;top:70%;animation-delay:6.5s;animation-duration:16s"></div>
+        <div class="data-grain" style="left:47%;top:80%;animation-delay:9s;animation-duration:24s"></div>
+        <div class="data-grain" style="left:68%;top:55%;animation-delay:0.8s;animation-duration:21s"></div>
+        <div class="data-grain" style="left:88%;top:75%;animation-delay:4s;animation-duration:19s"></div>
+        <!-- Larger glowing cyan accent grains -->
+        <div class="data-grain accent-grain" style="left:15%;animation-delay:11s;animation-duration:28s"></div>
+        <div class="data-grain accent-grain" style="left:40%;top:40%;animation-delay:14s;animation-duration:32s"></div>
+        <div class="data-grain accent-grain" style="left:72%;animation-delay:7s;animation-duration:26s"></div>
+        <div class="data-grain accent-grain" style="left:90%;top:50%;animation-delay:18s;animation-duration:30s"></div>
+      </div>
+
+      <!-- Scientist Floating Pills (Nodes) -->
+      <div id="scientistCloud">
+         <!-- SVG Overlay for Neural Links -->
+         <svg id="neuralLinkSvg" width="100%" height="100%" style="position:absolute; top:0; left:0; pointer-events:none; z-index:0;">
+             <line id="neuralLine" x1="0" y1="0" x2="0" y2="0" stroke="#22D3EE" stroke-width="2" stroke-dasharray="5,5" class="cyan-neural-link hidden"></line>
+         </svg>
+         
+         <!-- Scientist Pills -->
+         <!-- Add new .scientist-pill elements here -->
+      </div>
+
+      <!-- Interactive Controls -->
+      <button class="nav-btn left" onclick="moveRight()">&#10094;</button>
+      <button class="nav-btn right" onclick="moveLeft()">&#10095;</button>
+
+      <div class="ring-container" id="galleryTrack">
+        <!-- Add new .learning-card elements here -->
+      </div>
+    </main>
+
+    <!-- The Scientist Research Archive -->
+    <div class="horizon-wrapper" id="researchArchive">
+      <div class="gallery-header">
+        <h2>Scientist Research Archive</h2>
+        <p style="color: var(--color-lavender); font-size: 0.9rem;">Sorted by Mastery Level</p>
+      </div>
+      <div class="horizon-scroll-container" id="horizonScroll" onscroll="handleHorizonScroll()">
+        
+        <div class="horizon-page" id="page1" data-tab="Historical Giants">
+           <div class="scientist-grid">
+           <!-- Add new .scientist-box elements here -->
+           </div>
+        </div>
+
+        <div class="horizon-page" id="page2" data-tab="Modern Mastery">
+           <div class="scientist-grid">
+           <!-- Add new .scientist-box elements here -->
+           </div>
+        </div>
+
+        <div class="horizon-page" id="page3" data-tab="Atomic Future">
+           <div class="scientist-grid">
+           <!-- Add new .scientist-box elements here -->
+           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Full-Screen Profile Overlay -->
+    <div class="scientist-profile-overlay" id="profileOverlay" onclick="closeProfile()">
+      <button class="profile-close-btn" onclick="closeProfile()">&times;</button>
+      <div class="profile-inner" onclick="event.stopPropagation()">
+        <div class="profile-glow-bg"></div>
+        <div class="profile-mastery" id="profileMastery"></div>
+        <h2 class="profile-name" id="profileName"></h2>
+        <span class="scientist-field profile-field" id="profileField"></span>
+        <p class="profile-bio" id="profileBio"></p>
+        <div class="profile-connection">
+          <span class="profile-connection-label">🔗 Knowledge Connection</span>
+          <p id="profileConnection"></p>
+        </div>
+        <button class="share-btn profile-share-btn" onclick="document.getElementById('profileOverlay').click(); triggerShareBurst(event);">Make Public</button>
+      </div>
+    </div>
+
+    <script>
+      // 1. Initial Math
+      const allLearningCards = Array.from(document.querySelectorAll('.learning-card'));
+      
+      // Determine mastery dynamically based on score
+      allLearningCards.forEach(card => {
+        const scoreEl = card.querySelector('.mastery-score');
+        if (scoreEl && !scoreEl.classList.contains('goal-badge')) {
+            const score = parseInt(scoreEl.innerText.replace('%', ''));
+            if (score >= 90) card.dataset.mastery = 'high';
+            else if (score >= 70) card.dataset.mastery = 'medium';
+            else card.dataset.mastery = 'low';
+        }
+      });
+
+      let visibleCards = allLearningCards.filter(c => !c.classList.contains('hidden-page-item'));
+      let numCards = visibleCards.length;
+      let degreeStep = numCards > 0 ? 360 / numCards : 0;
+      const radius = 800; // Pushes cards out to prevent overlapping
+      
+
+      // Initialize Big & Asam Linear Carousel
+      let activeIndex = 0;
+      
+      const setupMemoryPalace = () => {
+        if (numCards === 0) {
+           document.getElementById('palaceContainer').style.display = 'none';
+        } else {
+           document.getElementById('palaceContainer').style.display = 'flex';
+        }
+        
+        // Reset Active index to center card based on new visible set
+        activeIndex = Math.floor(visibleCards.length / 2);
+        
+        document.querySelectorAll('.nav-btn').forEach(btn => {
+           btn.style.display = numCards > 1 ? 'flex' : 'none';
+        });
+
+        updateCarouselPositions(false);
+      };
+
+
+      // ── Big & Asam Linear Friction-Snap ──────────────────────
+      let isAnimating = false;
+      let lastClickTime = 0;
+
+      const rotatePalace = (direction) => {
+        const now = Date.now();
+        if (now - lastClickTime < 400) return;
+        lastClickTime = now;
+        
+        if (isAnimating) return;
+        
+        if (direction === 'next' && activeIndex < visibleCards.length - 1) {
+            activeIndex++;
+        } else if (direction === 'prev' && activeIndex > 0) {
+            activeIndex--;
+        } else {
+            // bounce effect if at edge
+            return;
+        }
+
+        isAnimating = true;
+        updateCarouselPositions(true);
+      };
+
+      function triggerDataWavePulse() {
+         const path = document.getElementById('dataWaveLine');
+         if (!path) return;
+         
+         // Generate a random wavy pulse path
+         let d = "M0,50 ";
+         for(let i=100; i<=900; i+=100) {
+             const yOffset = 50 + (Math.random() - 0.5) * 80; // random spike
+             d += `L${i},${yOffset} `;
+         }
+         d += "L1000,50";
+         
+         let m = window.waveSpeedMultiplier || 1.0;
+         gsap.to(path, {
+             attr: { d: d },
+             duration: 0.2 * m,
+             ease: "power2.out",
+             yoyo: true,
+             repeat: (m < 1 ? 3 : 1), // repeat more if fast
+             onComplete: () => {
+                 gsap.to(path, { attr: { d: "M0,50 L1000,50" }, duration: 0.8 * m, ease: "elastic.out(1, 0.3)" });
+             }
+         });
+      }
+
+      function updateCarouselPositions(animate = false) {
+          visibleCards.forEach((card, i) => {
+              const offset = i - activeIndex; // 0 is center, -1 is left, +1 is right
+              const isCenter = offset === 0;
+              
+              const gap = 450; // horizontal spacing between cards
+              
+              let targetX = offset * gap;
+              let targetZ = isCenter ? 0 : -600;
+              let targetScale = isCenter ? 1.5 : 0.8;
+              let targetOpacity = isCenter ? 1 : 0.3;
+              
+
+              if (animate) {
+                  window.particleSpeed = window.particleSpeed || { value: 0.5 };
+                  gsap.fromTo(window.particleSpeed, { value: 40.0 }, { value: 0.5, duration: 1.0, ease: "expo.out" });
+                  
+                  gsap.to(card, {
+
+                      x: targetX,
+                      z: targetZ,
+                      scale: targetScale,
+                      opacity: targetOpacity,
+                      rotationY: 0, // flatten out previous ring rotations
+                      duration: 1.0,
+                      ease: "expo.out", // Zero jitter perfect stability
+                      onComplete: () => {
+                          if (i === visibleCards.length - 1) isAnimating = false;
+                      }
+                  });
+              } else {
+                  gsap.set(card, {
+                      x: targetX,
+                      z: targetZ,
+                      scale: targetScale,
+                      opacity: targetOpacity,
+                      rotationY: 0
+                  });
+              }
+              
+
+
+              // Handle class toggles
+              if (isCenter) {
+                  const isTechBoard = card.classList.contains('future-tech-card') || card.classList.contains('atomic-news-card');
+                  if (isTechBoard) {
+                      gsap.to('#scientistCloud', { opacity: 0, duration: 0.5, overwrite: "auto" });
+                  } else {
+                      gsap.to('#scientistCloud', { opacity: 1, duration: 0.5, overwrite: "auto" });
+                  }
+
+                  if (!card.classList.contains('active')) {
+
+                      card.classList.add('active');
+                      if (navigator.vibrate) navigator.vibrate(15);
+                      
+                      // Restart glow pulse with specific color
+                      if (currentGlowTween) currentGlowTween.kill();
+                      const isAtomic = card.classList.contains('atomic-news-card') || card.classList.contains('future-tech-card') || card.dataset.topic === 'news';
+                      const glowColor = isAtomic ? '192, 132, 252' : '34, 211, 238'; // neon atomic #c084fc or science #22D3EE
+                      
+                      gsap.set(card, {
+                          boxShadow: `0 0 0px rgba(${glowColor}, 0)`,
+                          borderColor: `rgba(${glowColor}, 0.5)`
+                      });
+                      
+                      currentGlowTween = gsap.to(card, {
+                          boxShadow: `0 0 40px rgba(${glowColor}, 0.8)`,
+                          borderColor: `rgba(${glowColor}, 1)`,
+                          duration: 1.5,
+                          repeat: -1,
+                          yoyo: true,
+                          ease: "sine.inOut"
+                      });
+                  }
+                  card.style.filter = 'blur(0px)';
+                  card.style.pointerEvents = 'auto';
+                  card.style.zIndex = 100;
+              } else {
+                  card.classList.remove('active');
+                  card.style.filter = "blur(4px)";
+                  card.style.pointerEvents = 'none'; // disable clicks on back cards
+                  card.style.zIndex = Math.max(0, 10 - Math.abs(offset));
+              }
+          });
+          
+          // Data Wave pulse moved to page switch event
+          
+          // Context-Aware Nebula sync based on new center
+          const activeCard = visibleCards[activeIndex];
+          const topic = activeCard?.dataset?.topic || 'default';
+          if (window.setNebulaMode) window.setNebulaMode(topic);
+      }
+
+
+      // Initialize initial layout and focus on page load
+      setupMemoryPalace();
+
+      // Antigravity drift for all research cards
+      gsap.to(".learning-card", {
+        y: "random(-15, 15)", // Random floating height
+        rotationZ: "random(-2, 2)", // Slight weightless tilt
+        duration: "random(2, 4)",
+        repeat: -1,
+        yoyo: true,
+        ease: "sine.inOut",
+        stagger: 0.2 // Each card moves independently for a natural feel
+      });
+
+      // Figure-8 Orbital Drift for Scientist Pills
+      gsap.to(".scientist-pill", {
+        y: "random(-40, 40)", // Floating vertical drift
+        x: "random(-20, 20)", // Floating horizontal drift
+        duration: "random(3, 5)",
+        repeat: -1,
+        yoyo: true,
+        ease: "sine.inOut",
+        stagger: {
+          each: 0.5,
+          from: "random"
+        }
+      });
+
+      // Center Card Glow Sync handled dynamically in updateCarouselPositions
+      let currentGlowTween = null;
+
+      // Neural Link Hover Logic
+      const scientistPills = document.querySelectorAll('.scientist-pill');
+      const neuralLinkSvg = document.getElementById('neuralLinkSvg');
+      const neuralLine = document.getElementById('neuralLine');
+
+      scientistPills.forEach(pill => {
+          pill.addEventListener('mouseenter', () => {
+              // Target the active center card
+              const activeCard = document.querySelector('.learning-card.active');
+              if (activeCard && neuralLinkSvg && neuralLine) {
+                  const pillRect = pill.getBoundingClientRect();
+                  const cardRect = activeCard.getBoundingClientRect();
+                  const svgRect = neuralLinkSvg.getBoundingClientRect();
+                  
+                  // Compute center of pill and center of card
+                  const pX = pillRect.left + (pillRect.width / 2) - svgRect.left;
+                  const pY = pillRect.top + (pillRect.height / 2) - svgRect.top;
+                  const cX = cardRect.left + (cardRect.width / 2) - svgRect.left;
+                  const cY = cardRect.top + (cardRect.height / 2) - svgRect.top;
+                  
+                  neuralLine.setAttribute('x1', pX);
+                  neuralLine.setAttribute('y1', pY);
+                  neuralLine.setAttribute('x2', cX);
+                  neuralLine.setAttribute('y2', cY);
+                  
+                  neuralLine.classList.remove('hidden');
+              }
+          });
+          
+          pill.addEventListener('mouseleave', () => {
+              if (neuralLine) neuralLine.classList.add('hidden');
+          });
+          
+          // Click to toggle the save marker
+          pill.addEventListener('click', () => {
+              const marker = pill.querySelector('.save-marker-check');
+              // Just simulate saving visually
+              if (marker && marker.classList.contains('hidden')) {
+                  marker.classList.remove('hidden');
+              } else if (marker && !marker.classList.contains('hidden')) {
+                  marker.classList.add('hidden');
+              }
+          });
+      });
+
+      // Interactive Tilt for the Palace
+      const palaceContainer = document.getElementById('palaceContainer');
+      document.addEventListener('mousemove', (e) => {
+        // Calculate tilt based on cursor position relative to center
+        const xPos = (e.clientX / window.innerWidth - 0.5) * 25; // max 12.5 deg tilt
+        const yPos = (e.clientY / window.innerHeight - 0.5) * -25;
+        
+        gsap.to(palaceContainer, {
+            rotationY: xPos,
+            rotationX: yPos,
+            duration: 1.5,
+            ease: "power2.out",
+            transformPerspective: 1200,
+            transformOrigin: "center center"
+        });
+      });
+      
+      // Support Device Orientation for Mobile Tilt
+      window.addEventListener("deviceorientation", (e) => {
+          if(!e.beta || !e.gamma) return;
+          const xPos = Math.max(-15, Math.min(15, e.gamma / 2));
+          const yPos = Math.max(-15, Math.min(15, (e.beta - 45) / -2));
+          
+          gsap.to(palaceContainer, {
+              rotationY: xPos,
+              rotationX: yPos,
+              duration: 1,
+              ease: "power2.out"
+          });
+      });
+
+      // --- Neural Pulse Share Logic (Knowledge Graph Transit) --- //
+      function triggerShareBurst(event) {
+        event.stopPropagation(); // Don't open profile overlay
+        const btn = event.currentTarget;
+        const box = btn.closest('.scientist-box');
+        const scientistName = box?.dataset?.name || 'Scientist';
+        const scientistModule = box?.dataset?.connection || 'your knowledge graph';
+        const btnRect = btn.getBoundingClientRect();
+        const burstRadius = 40;
+        const numParticles = 12;
+
+        // Visual feedback on button
+        btn.textContent = "✔ Mapped!";
+        btn.style.borderColor = "rgba(34, 211, 238, 0.8)";
+        btn.style.color = "#22D3EE";
+        btn.style.boxShadow = "0 0 20px rgba(34,211,238,0.4)";
+        setTimeout(() => {
+          btn.textContent = "Make Public";
+          btn.style.borderColor = "";
+          btn.style.color = "";
+          btn.style.boxShadow = "";
+        }, 2500);
+
+        // Radial particle burst
+        for (let i = 0; i < numParticles; i++) {
+          const particle = document.createElement('div');
+          particle.className = 'burst-particle';
+          document.body.appendChild(particle);
+          const startX = btnRect.left + btnRect.width / 2;
+          const startY = btnRect.top + btnRect.height / 2;
+          const angle = (Math.PI * 2) * (i / numParticles);
+          const targetX = startX + Math.cos(angle) * burstRadius;
+          const targetY = startY + Math.sin(angle) * burstRadius;
+          gsap.fromTo(particle,
+            { x: startX, y: startY, scale: 1, opacity: 1 },
+            { x: targetX, y: targetY, scale: 0, opacity: 0,
+              duration: 0.6 + Math.random() * 0.2, ease: "power2.out",
+              onComplete: () => particle.remove() }
+          );
+        }
+
+        // --- Light Trail Node --- //
+        const btnCenterX = btnRect.left + btnRect.width / 2;
+        const btnCenterY = btnRect.top + btnRect.height / 2;
+
+        // Named node label that flies to the graph
+        const dataNode = document.createElement('div');
+        dataNode.className = 'data-burst-node neural-pulse-node';
+        dataNode.textContent = scientistName;
+        dataNode.style.cssText = `
+          position: fixed; z-index: 9999;
+          background: rgba(34,211,238,0.15);
+          border: 1px solid #22D3EE;
+          color: #22D3EE;
+          font-size: 0.7rem;
+          font-weight: 700;
+          letter-spacing: 1px;
+          padding: 4px 10px;
+          border-radius: 20px;
+          pointer-events: none;
+          white-space: nowrap;
+          box-shadow: 0 0 14px rgba(34,211,238,0.5), 0 0 30px rgba(34,211,238,0.2);
+        `;
+        document.body.appendChild(dataNode);
+
+        // Glowing comet trail
+        const dataTrail = document.createElement('div');
+        dataTrail.className = 'data-burst-trail';
+        document.body.appendChild(dataTrail);
+
+        // Knowledge Graph port is the top-center of the screen (simulating graph node)
+        const graphX = window.innerWidth / 2;
+        const graphY = 30;
+
+        gsap.timeline()
+          .fromTo(dataNode,
+            { x: btnCenterX, y: btnCenterY, scale: 0.6, opacity: 0 },
+            { x: btnCenterX, y: btnCenterY, scale: 1, opacity: 1, duration: 0.2, ease: "power2.out" }
+          )
+          .to(dataNode, {
+            x: graphX, y: graphY, scale: 0.7,
+            duration: 1.3, ease: "power3.inOut",
+            onComplete: () => {
+              // Flash at the graph node on arrival
+              gsap.to(dataNode, { scale: 1.5, opacity: 0, duration: 0.4, ease: "power2.out",
+                onComplete: () => dataNode.remove() });
+
+              // Trigger nebula pulse
+              if (window.triggerNebulaPulse) window.triggerNebulaPulse();
+
+              // ---- AI Mentor Speech Bubble Update ---- //
+              showAIMentorMessage(scientistName, scientistModule);
+            }
+          });
+
+        // Trail follows the named node
+        gsap.fromTo(dataTrail,
+          { x: btnCenterX, y: btnCenterY, opacity: 0.8, scaleX: 0.1 },
+          { x: graphX, y: graphY, opacity: 0, scaleX: 1.8,
+            duration: 1.3, ease: "power3.inOut",
+            onComplete: () => dataTrail.remove() }
+        );
+      }
+
+      // --- AI Mentor Speech Bubble Updater --- //
+      function showAIMentorMessage(name, connection) {
+        // Find or create the persistent AI mentor toast
+        let toast = document.getElementById('aiMentorToast');
+        if (!toast) {
+          toast = document.createElement('div');
+          toast.id = 'aiMentorToast';
+          toast.style.cssText = `
+            position: fixed;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 8999;
+            max-width: 520px;
+            width: 90vw;
+            background: rgba(15, 23, 42, 0.92);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(34, 211, 238, 0.45);
+            border-radius: 16px;
+            padding: 1rem 1.4rem;
+            color: #E2E8F0;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5), 0 0 20px rgba(34,211,238,0.1);
+            pointer-events: none;
+          `;
+          document.body.appendChild(toast);
+        }
+
+        // Personalized mapping message
+        toast.innerHTML = `
+          <span style="color:#22D3EE;font-weight:700;font-size:0.78rem;text-transform:uppercase;letter-spacing:1.5px;display:block;margin-bottom:0.4rem;">
+            🧠 AI Mentor
+          </span>
+          <strong style="color:#fff;">${name}</strong>'s research has been successfully mapped to your Knowledge Graph. ${connection}
+        `;
+
+        gsap.fromTo(toast,
+          { opacity: 0, y: -10 },
+          { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" }
+        );
+
+        // Auto-hide after 5s
+        clearTimeout(toast._hideTimer);
+        toast._hideTimer = setTimeout(() => {
+          gsap.to(toast, { opacity: 0, y: -10, duration: 0.4, ease: "power2.in",
+            onComplete: () => { if (toast.parentNode) toast.remove(); }
+          });
+        }, 5000);
+      }
+
+      // --- Grid Focus State Logic + Profile Launch --- //
+      const gallery = document.getElementById('researchArchive');
+      const scientistGridCards = document.querySelectorAll('.scientist-box');
+      
+      // On card click, openProfile handles it. We keep the dim logic below:
+      scientistGridCards.forEach(card => {
+        card.addEventListener('click', (e) => {
+          // Ignore clicks specifically on the share button
+          if (e.target.tagName.toLowerCase() === 'button') return;
+          
+          const isFocused = card.classList.contains('focused');
+          scientistGridCards.forEach(c => c.classList.remove('focused'));
+          
+          if (!isFocused) {
+            card.classList.add('focused');
+            gallery.classList.add('focus-active');
+          } else {
+            gallery.classList.remove('focus-active');
+          }
+        });
+      });
+
+      // --- Profile Overlay Open/Close --- //
+      function openProfile(box) {
+        const overlay = document.getElementById('profileOverlay');
+        document.getElementById('profileName').textContent = box.dataset.name || '';
+        document.getElementById('profileField').textContent = box.dataset.field || '';
+        document.getElementById('profileBio').textContent = box.dataset.bio || '';
+        document.getElementById('profileConnection').textContent = box.dataset.connection || '';
+        document.getElementById('profileMastery').textContent = (box.dataset.mastery || '') + '%';
+
+        overlay.classList.add('active');
+
+        // Unfold animation
+        const inner = overlay.querySelector('.profile-inner');
+        gsap.fromTo(inner,
+          { scale: 0.2, opacity: 0, rotationX: -30 },
+          { scale: 1, opacity: 1, rotationX: 0, duration: 0.7, ease: "back.out(1.4)" }
+        );
+      }
+
+      function closeProfile() {
+        const overlay = document.getElementById('profileOverlay');
+        const inner = overlay.querySelector('.profile-inner');
+        gsap.to(inner,
+          { scale: 0.2, opacity: 0, rotationX: -30, duration: 0.4, ease: "power3.in",
+            onComplete: () => overlay.classList.remove('active') }
+        );
+      }
+
+      // --- Neural Nebula (Three.js Particle System) --- //
+      (function initNeuralNebula() {
+        const NUM_PARTICLES = 5000;
+        let mouseX = 0, mouseY = 0;  // normalized -1 to +1
+        let scrollParallaxY = 0;
+
+        // Track mouse for drift
+        window.addEventListener('mousemove', (e) => {
+          mouseX = (e.clientX / window.innerWidth - 0.5) * 2;
+          mouseY = (e.clientY / window.innerHeight - 0.5) * 2;
+        }, { passive: true });
+
+        // Scroll → atmospheric depth shift (5px/100px)
+        window.addEventListener('scroll', () => {
+          scrollParallaxY = window.scrollY * 0.05;
+          // Shift body background color from Navy to Galactic Purple as user scrolls
+          const scrollRatio = Math.min(1, window.scrollY / 1000);
+          const r1 = 11, g1 = 17, b1 = 32;  // #0B1120 Deep Navy
+          const r2 = 30, g2 = 27, b2 = 75;  // #1E1B4B Galactic Purple
+          const r = Math.round(r1 + (r2 - r1) * scrollRatio);
+          const g = Math.round(g1 + (g2 - g1) * scrollRatio);
+          const b = Math.round(b1 + (b2 - b1) * scrollRatio);
+          document.body.style.background = `rgb(${r}, ${g}, ${b})`;
+        }, { passive: true });
+
+        // Setup Three.js Scene
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+        camera.position.z = 600;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.domElement.style.position = 'fixed';
+        renderer.domElement.style.top = '0';
+        renderer.domElement.style.left = '0';
+        renderer.domElement.style.zIndex = '0';
+        renderer.domElement.style.pointerEvents = 'none';
+        document.body.insertBefore(renderer.domElement, document.body.firstChild);
+
+        // Remove old 2D canvas if it still exists
+        const oldCanvas = document.getElementById('nebulaCanvas');
+        if (oldCanvas) oldCanvas.remove();
+
+        // --- Particle Geometry --- //
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(NUM_PARTICLES * 3);
+        const colors = new Float32Array(NUM_PARTICLES * 3);
+        const sizes = new Float32Array(NUM_PARTICLES);
+
+        for (let i = 0; i < NUM_PARTICLES; i++) {
+          const i3 = i * 3;
+          // Positions: spread across deep space volume
+          positions[i3]     = (Math.random() - 0.5) * 2000;
+          positions[i3 + 1] = (Math.random() - 0.5) * 1500;
+          positions[i3 + 2] = (Math.random() - 0.5) * 1000;
+
+          // Colors: mix of white stars and cyan neural nodes
+          const isCyan = Math.random() > 0.85;
+          colors[i3]     = isCyan ? 0.13 : 0.9;
+          colors[i3 + 1] = isCyan ? 0.82 : 0.9;
+          colors[i3 + 2] = isCyan ? 0.93 : 1.0;
+
+          sizes[i] = isCyan ? Math.random() * 3.0 + 1.5 : Math.random() * 1.5 + 0.3;
+        }
+
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+        // Shader material for glowing stars
+        const material = new THREE.ShaderMaterial({
+          vertexShader: `
+            attribute float size;
+            attribute vec3 color;
+            varying vec3 vColor;
+            void main() {
+              vColor = color;
+              vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+              gl_PointSize = size * (400.0 / -mvPosition.z);
+              gl_Position = projectionMatrix * mvPosition;
+            }
+          `,
+          fragmentShader: `
+            varying vec3 vColor;
+            void main() {
+              float d = distance(gl_PointCoord, vec2(0.5));
+              if (d > 0.5) discard;
+              float alpha = 1.0 - smoothstep(0.3, 0.5, d);
+              gl_FragColor = vec4(vColor, alpha);
+            }
+          `,
+          transparent: true,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+          vertexColors: true
+        });
+
+        const particles = new THREE.Points(geometry, material);
+        scene.add(particles);
+
+        // Pulse state
+        let pulseActive = false;
+        let pulseTime = 0;
+        const pulsePositions = geometry.attributes.position.array;
+        const originalSizes = sizes.slice();
+
+        // Expose global trigger for Data Pulse (called from Make Public)
+        window.triggerNebulaPulse = function() {
+          pulseActive = true;
+          pulseTime = 0;
+        };
+
+        // --- Context-Aware Mode System --- //
+        let currentMode = 'default';       // 'default' | 'biology' | 'physics' | 'frustration'
+        let modeTransitionSpeed = 0.02;    // Lerp speed for smooth particle transitions
+        const targetPositions = positions.slice(); // Start with same as original
+        const originalPositions = positions.slice();
+
+        // Pre-compute DNA helix target positions
+        const dnaPositions = new Float32Array(NUM_PARTICLES * 3);
+        for (let i = 0; i < NUM_PARTICLES; i++) {
+          const t = (i / NUM_PARTICLES) * Math.PI * 40;  // 20 full turns
+          const helixRadius = 180;
+          const strand = i % 2 === 0 ? 0 : Math.PI;     // Two strands 180° apart
+          dnaPositions[i*3]   = Math.cos(t + strand) * helixRadius;
+          dnaPositions[i*3+1] = (i / NUM_PARTICLES - 0.5) * 1400;
+          dnaPositions[i*3+2] = Math.sin(t + strand) * helixRadius;
+        }
+
+        // Pre-compute gravitational well target positions
+        const physicsPositions = new Float32Array(NUM_PARTICLES * 3);
+        for (let i = 0; i < NUM_PARTICLES; i++) {
+          const r = Math.random() * 600 + 10;
+          const theta = Math.random() * Math.PI * 2;
+          const phi = (Math.random() - 0.5) * Math.PI * 0.3; // Flatten into a disk
+          physicsPositions[i*3]   = r * Math.cos(theta) * Math.cos(phi);
+          physicsPositions[i*3+1] = r * Math.sin(phi) * 0.5;
+          physicsPositions[i*3+2] = r * Math.sin(theta) * Math.cos(phi);
+        }
+
+        // Expose global mode setter
+        window.setNebulaMode = function(mode) {
+          currentMode = mode;
+
+          if (mode === 'biology') {
+            document.body.style.transition = 'background 2s ease';
+            document.body.style.background = '#071a10'; // Deep biological green-black
+            modeTransitionSpeed = 0.015;
+            for (let i = 0; i < NUM_PARTICLES * 3; i++) targetPositions[i] = dnaPositions[i];
+
+          } else if (mode === 'physics') {
+            document.body.style.transition = 'background 2s ease';
+            document.body.style.background = '#0a0b1a'; // Deep cosmic navy
+            modeTransitionSpeed = 0.012;
+            for (let i = 0; i < NUM_PARTICLES * 3; i++) targetPositions[i] = physicsPositions[i];
+
+          } else if (mode === 'frustration') {
+            document.body.style.transition = 'background 3s ease';
+            document.body.style.background = '#100b17'; // Calming deep violet
+            modeTransitionSpeed = 0.006; // Very slow drift for calm effect
+            for (let i = 0; i < NUM_PARTICLES * 3; i++) targetPositions[i] = originalPositions[i];
+
+          } else {
+            // Reset to default deep nebula
+            document.body.style.transition = 'background 2s ease';
+            document.body.style.background = '#0B1120';
+            modeTransitionSpeed = 0.02;
+            for (let i = 0; i < NUM_PARTICLES * 3; i++) targetPositions[i] = originalPositions[i];
+          }
+        };
+
+        // Animation loop
+        const clock = new THREE.Clock();
+        function animate() {
+          requestAnimationFrame(animate);
+          const elapsed = clock.getElapsedTime();
+
+          // --- Linear Data-Stream Flow --- //
+          const posAttr = geometry.attributes.position;
+          const currentSpeed = window.particleSpeed ? window.particleSpeed.value : 0.5;
+          for (let i = 0; i < NUM_PARTICLES; i++) {
+              posAttr.array[i*3] -= currentSpeed; // Variable high-speed linear travel
+              if (posAttr.array[i*3] < -1200) {
+                  posAttr.array[i*3] = 1200; // recycle geometry wrap
+                  posAttr.array[i*3+1] = (Math.random() - 0.5) * 1500;
+                  posAttr.array[i*3+2] = (Math.random() - 0.5) * 1000;
+              }
+          }
+          posAttr.needsUpdate = true;
+          
+          particles.rotation.y = 0;
+          particles.rotation.x = 0;
+          
+          // Scroll parallax:
+
+          particles.position.y = scrollParallaxY * 2;
+
+          // Data Pulse: ripple through sizes when triggered
+          if (pulseActive) {
+            pulseTime += 0.04;
+            const sizeAttr = geometry.attributes.size;
+            for (let i = 0; i < NUM_PARTICLES; i++) {
+              const dist = Math.sqrt(
+                pulsePositions[i*3]   ** 2 +
+                pulsePositions[i*3+1] ** 2 +
+                pulsePositions[i*3+2] ** 2
+              ) / 100;
+              const wave = Math.sin(dist - pulseTime * 5) * 0.5 + 0.5;
+              sizeAttr.array[i] = originalSizes[i] + wave * 3.5;
+            }
+            sizeAttr.needsUpdate = true;
+            if (pulseTime > 3) {
+              // Reset when done
+              for (let i = 0; i < NUM_PARTICLES; i++) sizeAttr.array[i] = originalSizes[i];
+              sizeAttr.needsUpdate = true;
+              pulseActive = false;
+            }
+          }
+
+          renderer.render(scene, camera);
+        }
+
+        animate();
+
+        // Handle resize
+        window.addEventListener('resize', () => {
+          camera.aspect = window.innerWidth / window.innerHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+      })();
+
+      // --- News Stream Logic --- //
+      const newsVault = [
+        // Add news items here
+      ];
+
+      function toggleNewsDrawer() {
+          const drawer = document.getElementById('newsDrawer');
+          drawer.classList.toggle('open');
+      }
+
+      function renderNewsFeed() {
+          const feed = document.getElementById('newsFeed');
+          feed.innerHTML = ''; // clear
+          newsVault.forEach((news, idx) => {
+             const card = document.createElement('div');
+             card.className = 'news-card';
+             // simple stagger animation for mount
+             card.style.opacity = '0';
+             card.style.transform = 'translateY(20px)';
+             
+             card.innerHTML = `
+                <span class="news-category" style="color: ${news.color}">${news.category}</span>
+                <h4>${news.title}</h4>
+                <p>${news.description}</p>
+             `;
+             feed.appendChild(card);
+             
+             gsap.to(card, {
+                 opacity: 1,
+                 y: 0,
+                 duration: 0.5,
+                 delay: idx * 0.1,
+                 ease: "power2.out"
+             });
+          });
+      }
+
+      // Render it once on boot
+      renderNewsFeed();
+
+    </script>
+
+    <!-- News Stream Drawer -->
+    <div id="newsDrawer" class="news-drawer">
+      <div class="news-header">
+        <h3>📡 Science & Tech Vault News</h3>
+        <button class="close-news-btn" onclick="toggleNewsDrawer()">&times;</button>
+      </div>
+      <div class="news-feed" id="newsFeed">
+        <!-- JS will populate news cards here -->
+      </div>
+    </div>
+    <button class="toggle-news-btn" onclick="toggleNewsDrawer()">
+      <span class="pulse-dot"></span> Live Stream
+    </button>
+
+  
+    <!-- Live Stream Indicator (Atomic Sync) -->
+    <div class="live-stream-ticker" id="liveTicker">
+       <div class="live-indicator"></div>
+       <div class="live-text">SYNC: ATOMIC DATABASE CONNECTED</div>
+    </div>
+
+  </body>
+</html>

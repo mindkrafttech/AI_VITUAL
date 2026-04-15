@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Diamond Dashboard – Mentor UI</title>
+    <link rel="stylesheet" href="styles.css?v=5" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+  </head>
+  <body>
+    <!-- The Workspace Split-Screen Layout -->
+    <div class="workspace-layout">
+      
+      <!-- Left Panel: AI Tutor -->
+      <aside class="tutor-panel">
+        <div class="avatar-container">
+          <div class="avatar-hub">
+            <div class="energy-ring"></div>
+            <!-- Identity Shift V3: Bypassing legacy browser cache -->
+            <img src="avatar_v3.png" 
+                 alt="Elite Diamond Mentor" 
+                 class="avatar" 
+                 id="avatarImg" 
+                 onerror="this.src='/avatar';" />
+          </div>
+          <div class="tutor-status-info">
+            <h2 id="topicTitle">Learning Workspace</h2>
+            <p>Your AI Mentor is ready.</p>
+          </div>
+        </div>
+        
+        <div class="tutor-controls">
+
+          <!-- Chat Interface -->
+          <div class="chat-interface">
+            <div class="input-row" style="display: flex; gap: 0.8rem; width: 100%;">
+                <input type="text" id="aiQueryInput" placeholder="Ask your AI Tutor..." style="flex: 1;" />
+                <button class="nav-btn" id="recordVoiceBtn" title="Speak to Tutor">🎙️</button>
+            </div>
+            <button class="nav-btn" id="askAiBtn">Ask Knowledge Vault</button>
+            <button class="nav-btn" id="quickResearchBtn" style="background: rgba(168, 85, 247, 0.2); border-color: #a855f7;">Quick Research</button>
+          </div>
+
+          <div class="action-buttons">
+            <button class="action-btn" id="uploadBtn">
+              <i class="fas fa-brain"></i> Teach Diamond
+            </button>
+            <button class="nav-btn" id="frustrationBtn">Simulate Frustration</button>
+            <button class="nav-btn" id="ocrBtn">Scan Problem (OCR)</button>
+            <button class="nav-btn" id="quizBtn" style="background: rgba(34,211,238,0.2); border-color: var(--color-cyan);">Generate Quiz</button>
+            <a href="memory-palace.html" class="nav-btn" id="memoryPalaceLink">Go to Memory Palace</a>
+          </div>
+        </div>
+
+        <!-- Lesson Upload Modal -->
+        <div id="uploadModal" class="modal-overlay">
+            <div class="glass-card modal-content">
+                <h2>Teach Your AI Mentor</h2>
+                <p>Paste your scientific text or lesson notes here to add them to Diamond's memory.</p>
+                <textarea id="lessonText" placeholder="Paste your lesson content here..." style="width: 100%; height: 200px; background: rgba(0,0,0,0.3); border: 1px solid rgba(34,211,238,0.3); color: #fff; padding: 1rem; border-radius: 8px; font-family: inherit; margin-bottom: 1rem; resize: none;"></textarea>
+                <div class="modal-actions" style="display: flex; gap: 1rem; justify-content: flex-end;">
+                    <button id="closeModal" class="nav-btn" style="background: rgba(239, 68, 68, 0.2); box-shadow: none; pointer-events: auto;">Cancel</button>
+                    <button id="commitBtn" class="nav-btn" style="background: var(--color-cyan); color: var(--color-primary); box-shadow: none; pointer-events: auto;">Commit to Memory</button>
+                </div>
+            </div>
+        </div>
+
+
+        <div class="dashboard-footer">
+          Created by <span class="creator-name">S. Santhosh Kumar</span> | © Copyright Santhosh
+        </div>
+      </aside>
+
+      <!-- Right Panel: Interactive Canvas -->
+      <main class="interactive-canvas">
+        <header class="canvas-header" style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <h3>Knowledge Graph Analysis</h3>
+            <span class="status-badge">Live Sync</span>
+          </div>
+          <!-- The Scientist Data Share Box -->
+          <div class="scientist-card-box" id="scientistShareBox">
+            <span class="box-icon">💾</span> Save Research
+            <div class="particle-container" id="particleBox"></div>
+          </div>
+        </header>
+        
+        <!-- Smart Sidebar (Knowledge Graph) moved to Canvas -->
+        <div class="graph-container" style="position: relative;">
+          <canvas id="knowledgeGraph"></canvas>
+          
+          <!-- Node Click 3D Glass Cube Unfold -->
+          <div class="unfold-box-overlay hidden" id="unfoldBoxOverlay">
+            <div class="glass-cube-wrapper" id="glassCubeWrapper">
+              <!-- Drifting Background Data Layers -->
+              <div class="cube-layer layer-bg">
+                 <span class="drifting-math">∑(F) = ma</span>
+                 <span class="drifting-date">1687</span>
+                 <span class="drifting-node">●──────●</span>
+              </div>
+              
+              <!-- Main Content Layer -->
+              <div class="cube-layer layer-content">
+                <h3 id="unfoldBoxTitle">Scientist Name</h3>
+                <p id="unfoldBoxField" class="field-text">Field of Study</p>
+                <p id="unfoldBoxNotes">Research notes and details will appear here, pulled from the Knowledge Graph connection.</p>
+                <div class="action-buttons cube-actions" style="margin-top: auto; display: flex; gap: 0.5rem; justify-content: flex-start;">
+                  <button class="nav-btn public-pulse-btn" id="makePublicBtn" style="width: auto; padding: 0.5rem 1rem;">Make Public</button>
+                  <button class="nav-btn" id="confirmSaveBtn" style="width: auto; padding: 0.5rem 1rem;">Save</button>
+                  <button class="nav-btn" id="toggleDetailedBtn" style="width: auto; padding: 0.5rem 1rem; background: rgba(34, 211, 238, 0.2); border-color: var(--color-cyan);">Show Full</button>
+                  <button class="nav-btn close-btn" id="closeUnfoldBtn" style="width: auto; padding: 0.5rem 1rem;">Close</button>
+                </div>
+              </div>
+              
+              <!-- Top Portrait Layer -->
+              <div class="cube-layer layer-top">
+                 <div class="cube-portrait"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Interactive Quiz Overlay -->
+        <div class="quiz-overlay hidden" id="quizOverlay">
+           <div class="quiz-card" id="quizCard">
+              <h4 id="quizTopic">Loading Quiz...</h4>
+              <p id="quizQuestion"></p>
+              <div class="quiz-options" id="quizOptions"></div>
+              <p class="quiz-feedback hidden" id="quizFeedback"></p>
+              <button class="nav-btn hidden" id="nextQuestionBtn">Next Question</button>
+           </div>
+           <button class="nav-btn close-btn" id="closeQuizBtn" style="position: absolute; bottom: 20px; right: 20px;">Exit Quiz</button>
+        </div>
+      </main>
+
+      <!-- OCR Scanner Modal Overlay -->
+      <div class="scanner-modal" id="scannerModal">
+        <div class="glass-card modal-content" style="max-width: 500px; padding: 2rem;">
+          <div class="scanner-view" style="width: 100%; max-width: 100%; height: 250px;">
+            <div class="scanner-laser"></div>
+            <div class="upload-prompt" id="uploadPrompt">
+               <p>Drop an image of your math or science problem here, or click to upload.</p>
+               <input type="file" id="ocrFileInput" accept="image/*" style="display: none;" />
+               <button class="nav-btn" onclick="document.getElementById('ocrFileInput').click()" style="width: auto; margin: 0 auto;">Choose File</button>
+            </div>
+            <div id="ocrContent"></div>
+          </div>
+          <button class="nav-btn close-btn" id="closeOcrBtn" style="margin-top: 1rem; width: auto;">Close</button>
+        </div>
+      </div>
+
+      <!-- Quick Research Overlay (Glassmorphism) -->
+      <div class="research-overlay hidden" id="researchOverlay">
+        <div class="glass-card research-card">
+          <div class="research-header">
+            <h3>Diamond Research Summary</h3>
+            <button class="close-btn" id="closeResearchBtn">×</button>
+          </div>
+          <div class="research-body" id="researchBody">
+            <div class="pulse-loader">Synthesizing Research...</div>
+          </div>
+          <div class="research-footer">
+            <span class="status-badge">AI Verified</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script src="script.js?v=5"></script>
+  </body>
+</html>

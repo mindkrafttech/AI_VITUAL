@@ -1,0 +1,13 @@
+Flask
+Flask-SQLAlchemy
+Flask-Cors
+python-dotenv
+chromadb
+sentence-transformers
+sqlalchemy
+openai
+google-generativeai
+google-genai
+requests
+beautifulsoup4
+numpy

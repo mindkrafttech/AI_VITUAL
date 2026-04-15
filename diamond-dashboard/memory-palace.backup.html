@@ -1,0 +1,1568 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Memory Palace – Diamond Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <style>
+      body {
+        margin: 0;
+        /* Atmospheric Depth: Navy at top → Galactic Purple at bottom on scroll */
+        background: #0B1120;
+        overflow-x: hidden;
+        overflow-y: auto;
+        color: #fff;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        user-select: none;
+      }
+
+      .palace-header {
+        padding: 2rem 4rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        z-index: 10;
+      }
+
+      .palace-header h1 {
+        margin: 0;
+        font-weight: 500;
+        letter-spacing: 1px;
+        color: var(--color-lavender);
+        text-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      }
+
+      /* Navigation Button styling */
+      .back-btn {
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+        border: 1px solid rgba(255,255,255,0.2);
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        cursor: pointer;
+        text-decoration: none;
+        transition: all 0.2s ease;
+        z-index: 100;
+      }
+
+      .back-btn:hover {
+        background: rgba(255, 255, 255, 0.15);
+        border-color: rgba(255,255,255,0.4);
+      }
+
+      /* The Main Stage */
+      .memory-palace-stage {
+        perspective: 1200px; /* High depth for the 'Palace' feel */
+        width: 100%;
+        height: 80vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        background: #0B1120; /* Matching your dark theme */
+      }
+
+      /* The Rotating Ring */
+      .ring-container {
+        position: relative;
+        width: 100%; /* Ensures container does not squash the 3D transforms */
+        height: 480px;
+        transform-style: preserve-3d;
+        transition: transform 0.7s cubic-bezier(0.19, 1, 0.22, 1);
+      }
+
+      /* The Cards */
+      .learning-card {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 320px;
+        height: 480px;
+        backface-visibility: hidden; /* Keeps it sharp during rotation */
+        border-radius: 20px;
+        background: rgba(30, 41, 59, 0.8);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 24px;
+        
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+        
+        /* Gsap will handle the transforms, but we keep the transitions for visuals */
+        transition: border-color 0.4s ease, box-shadow 0.4s ease, filter 0.4s ease;
+        box-sizing: border-box;
+        --glow-color-rgb: 34, 211, 238; /* Default Cyan */
+      }
+
+      /* Using CSS variables to change the glow dynamically */
+      .learning-card[data-mastery="high"] {
+        --glow-color-rgb: 34, 211, 238; /* Vibrant Cyan */
+      }
+
+      .learning-card[data-mastery="medium"] {
+        --glow-color-rgb: 59, 130, 246; /* Soft Blue */
+      }
+
+      .learning-card[data-mastery="low"] {
+        --glow-color-rgb: 251, 191, 36; /* Warm Amber */
+      }
+
+      /* Hover and Active states */
+      .learning-card:hover {
+        box-shadow: 
+          0 20px 40px rgba(0, 0, 0, 0.6),
+          0 0 30px rgba(var(--glow-color-rgb), 0.4),
+          inset 0 0 0 1px rgba(var(--glow-color-rgb), 0.6);
+        border-color: rgba(var(--glow-color-rgb), 0.5);
+      }
+
+      .learning-card.active {
+        border-color: rgba(var(--glow-color-rgb), 0.8);
+        box-shadow: 0 0 20px rgba(var(--glow-color-rgb), 0.4), inset 0 0 0 1px rgba(var(--glow-color-rgb), 0.6);
+      }
+
+      .learning-card.active .memory-title {
+        color: #fff;
+        text-shadow: 0 0 15px rgba(255, 255, 255, 0.6);
+      }
+      
+      .learning-card.active .mastery-score {
+        animation: scorePulse 2s cubic-bezier(0.19, 1, 0.22, 1) infinite;
+        color: #fff;
+        background: rgba(var(--glow-color-rgb), 0.3);
+        box-shadow: 0 0 15px rgba(var(--glow-color-rgb), 0.5), inset 0 0 10px rgba(255, 255, 255, 0.3);
+        border-color: rgba(var(--glow-color-rgb), 0.8);
+      }
+
+      @keyframes scorePulse {
+        0%, 100% { box-shadow: 0 0 10px rgba(var(--glow-color-rgb), 0.4), inset 0 0 5px rgba(255, 255, 255, 0.1); }
+        50% { box-shadow: 0 0 25px rgba(var(--glow-color-rgb), 0.8), inset 0 0 15px rgba(255, 255, 255, 0.4); transform: scale(1.05); }
+      }
+
+      /* Dynamic Lighting Sweep on Active Card */
+      .learning-card.active::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 50%;
+        height: 100%;
+        background: linear-gradient(
+          to right,
+          rgba(255, 255, 255, 0) 0%,
+          rgba(255, 255, 255, 0.4) 50%,
+          rgba(255, 255, 255, 0) 100%
+        );
+        transform: skewX(-20deg);
+        animation: lightSweep 1.5s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+        pointer-events: none;
+        border-radius: 20px;
+        z-index: 10;
+      }
+
+      @keyframes lightSweep {
+        0% { left: -100%; }
+        100% { left: 200%; }
+      }
+
+      /* "Crystal" Overlay styling */
+      .learning-card::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 60%);
+        opacity: 0.5;
+        pointer-events: none;
+        border-radius: 20px;
+      }
+
+      .memory-content {
+        position: relative;
+        z-index: 2;
+        transform: translateY(20px);
+        opacity: 0.8;
+        transition: all 0.4s ease;
+      }
+
+      .learning-card:hover .memory-content,
+      .learning-card.active .memory-content {
+        transform: translateY(0);
+        opacity: 1;
+      }
+
+      .memory-date {
+        font-size: 0.8rem;
+        color: var(--color-cyan);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 0.5rem;
+      }
+      .memory-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin: 0 0 1rem 0;
+        color: #fff;
+        transition: color 0.4s ease, text-shadow 0.4s ease;
+      }
+      .memory-desc {
+        font-size: 0.95rem;
+        color: var(--color-lavender);
+        line-height: 1.5;
+        margin: 0;
+      }
+      .mastery-score {
+        position: absolute;
+        top: 2rem;
+        right: 2rem;
+        background: rgba(var(--glow-color-rgb), 0.15);
+        color: rgb(var(--glow-color-rgb));
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-weight: 600;
+        font-size: 0.9rem;
+        border: 1px solid rgba(var(--glow-color-rgb), 0.4);
+        z-index: 5;
+      }
+
+      /* Left/Right Interactive Controls */
+      .nav-btn {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.2);
+        backdrop-filter: blur(10px);
+        color: #fff;
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        font-size: 24px;
+        cursor: pointer;
+        z-index: 20;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        transition: all 0.3s ease;
+      }
+      .nav-btn:hover {
+        background: rgba(255, 255, 255, 0.15);
+        border-color: rgba(34, 211, 238, 0.5);
+        color: var(--color-cyan);
+        box-shadow: 0 0 20px rgba(34, 211, 238, 0.2);
+      }
+      .nav-btn.left { left: 5vw; }
+      .nav-btn.right { right: 5vw; }
+
+      /* Scientist Floating Nodes in the Archive Cloud */
+      .scientist-node {
+        position: absolute;
+        color: var(--color-cyan);
+        background: rgba(30, 41, 59, 0.6);
+        border: 1px solid rgba(34, 211, 238, 0.3);
+        padding: 0.5rem 1rem;
+        border-radius: 50px;
+        backdrop-filter: blur(8px);
+        font-size: 0.85rem;
+        font-weight: 500;
+        pointer-events: none;
+        z-index: 1;
+        box-shadow: 0 0 10px rgba(34, 211, 238, 0.2);
+      }
+
+      /* --- Scientist Research Archive Gallery --- */
+      .research-gallery {
+        padding: 4rem;
+        max-width: 1400px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        grid-auto-rows: min-content;
+        gap: 2rem;
+        /* Masonry-like behavior using grid with align-items start */
+        align-items: start;
+        overflow-y: auto;
+        height: 100%;
+        padding-bottom: 8rem;
+      }
+
+      .research-gallery::-webkit-scrollbar {
+        width: 8px;
+      }
+
+      .research-gallery::-webkit-scrollbar-thumb {
+        background: rgba(34, 211, 238, 0.3);
+        border-radius: 4px;
+      }
+
+      .gallery-header {
+        width: 100%;
+        text-align: center;
+        margin: 2rem 0;
+      }
+      
+      .gallery-header h2 {
+        font-size: 2rem;
+        color: var(--color-cyan);
+        font-weight: 500;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+      }
+
+      /* Scientist Data Card */
+      .scientist-card {
+        background: rgba(15, 23, 42, 0.7);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        padding: 1.5rem;
+        color: #E2E8F0;
+        position: relative;
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        transform-style: preserve-3d;
+        cursor: pointer;
+      }
+
+      /* Glowing Neon Save Marker overlay */
+      .scientist-card::before {
+        content: '';
+        position: absolute;
+        inset: -2px;
+        border-radius: 18px;
+        background: linear-gradient(45deg, transparent, var(--color-cyan), transparent);
+        z-index: -1;
+        opacity: 0;
+        transition: opacity 0.4s ease;
+      }
+
+      /* 3D Antigravity Hover Tilt */
+      .scientist-card:hover {
+        transform: translateY(-10px) rotateX(5deg) rotateY(-5deg);
+        box-shadow: 
+          10px 15px 30px rgba(0, 0, 0, 0.5),
+          -5px -5px 20px rgba(34, 211, 238, 0.15);
+        border-color: rgba(34, 211, 238, 0.5);
+      }
+
+      .scientist-card:hover::before {
+        opacity: 0.8;
+      }
+
+      .scientist-name {
+        font-size: 1.3rem;
+        font-weight: 600;
+        color: #fff;
+        margin: 0 0 0.5rem 0;
+      }
+
+      .scientist-field {
+        font-size: 0.85rem;
+        color: var(--color-lavender);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 1rem;
+        display: inline-block;
+        border-bottom: 1px solid rgba(34, 211, 238, 0.3);
+        padding-bottom: 0.2rem;
+      }
+
+      .scientist-notes {
+        font-size: 0.95rem;
+        line-height: 1.6;
+        color: rgba(226, 232, 240, 0.9);
+        margin-bottom: 1.5rem;
+      }
+
+      /* Particle Share Button */
+      .share-btn {
+        background: transparent;
+        border: 1px solid rgba(34, 211, 238, 0.4);
+        color: var(--color-cyan);
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .share-btn:hover {
+        background: rgba(34, 211, 238, 0.1);
+        box-shadow: 0 0 15px rgba(34, 211, 238, 0.3);
+      }
+
+      /* Small particle explosion class injected via JS */
+      .burst-particle {
+        position: absolute;
+        width: 6px;
+        height: 6px;
+        background: #fff;
+        border-radius: 50%;
+        pointer-events: none;
+        box-shadow: 0 0 10px #fff, 0 0 20px var(--color-cyan);
+        z-index: 50;
+      }
+
+      /* Nebula Ripple Effect */
+      .nebula-ripple {
+        position: absolute;
+        top: 50%; left: 50%;
+        width: 600px; height: 600px;
+        transform: translate(-50%, -50%);
+        border-radius: 50%;
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      /* Multi-Page Horizon Nav */
+      .multi-page-horizon {
+        display: flex;
+        gap: 1.5rem;
+        align-items: center;
+        margin: 0 2rem;
+      }
+      .page-tab {
+        background: transparent;
+        color: rgba(255,255,255,0.6);
+        border: none;
+        padding: 0.5rem 0;
+        font-size: 1.05rem;
+        font-weight: 500;
+        cursor: pointer;
+        position: relative;
+        transition: color 0.3s ease;
+      }
+      .page-tab::after {
+        content: '';
+        position: absolute;
+        bottom: -5px; left: 0; width: 100%; height: 2px;
+        background: var(--color-cyan);
+        transform: scaleX(0);
+        transition: transform 0.3s ease;
+        transform-origin: left center;
+      }
+      .page-tab:hover {
+        color: #fff;
+      }
+      .page-tab.active {
+        color: var(--color-cyan);
+      }
+      .page-tab.active::after {
+        transform: scaleX(1);
+      }
+      .hidden-page-item {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    
+    <header class="palace-header">
+      <h1>The Memory Palace</h1>
+
+      <!-- Multi-Page Horizon Nav -->
+      <div class="multi-page-horizon">
+        <button class="page-tab active" onclick="switchPage('page1', this)">Historical Giants</button>
+        <button class="page-tab" onclick="switchPage('page2', this)">Modern Mastery</button>
+        <button class="page-tab" onclick="switchPage('page3', this)">Atomic Future</button>
+      </div>
+
+      <div style="display:flex;gap:0.6rem;align-items:center;flex-wrap:wrap;">
+        <!-- Context-Aware Mode Controls -->
+        <button class="back-btn mode-btn" style="font-size:0.78rem;padding:0.5rem 1rem;border-color:rgba(34,211,238,0.4);color:var(--color-cyan);" onclick="window.setNebulaMode?.('biology')" title="Biology Mode">🧬 Biology</button>
+        <button class="back-btn mode-btn" style="font-size:0.78rem;padding:0.5rem 1rem;border-color:rgba(99,102,241,0.4);color:#818cf8;" onclick="window.setNebulaMode?.('physics')" title="Physics Mode">⚛️ Physics</button>
+        <button class="back-btn mode-btn" style="font-size:0.78rem;padding:0.5rem 1rem;border-color:rgba(139,92,246,0.5);color:#a78bfa;" onclick="window.setNebulaMode?.('frustration')" title="I'm frustrated — calm the nebula">🫁 Calm Focus</button>
+        <button class="back-btn mode-btn" style="font-size:0.78rem;padding:0.5rem 1rem;" onclick="window.setNebulaMode?.('default')" title="Default">✦ Default</button>
+        <a href="workspace.html" class="back-btn">Return to Workspace</a>
+      </div>
+    </header>
+
+    <main class="memory-palace-stage" id="palaceContainer">
+      <!-- GPU-Accelerated CSS Neural Background (complements Three.js nebula) -->
+      <div class="neural-background">
+        <div class="data-grain" style="left:5%;animation-delay:0s;animation-duration:18s"></div>
+        <div class="data-grain" style="left:12%;animation-delay:2s;animation-duration:22s"></div>
+        <div class="data-grain" style="left:20%;animation-delay:4s;animation-duration:16s"></div>
+        <div class="data-grain" style="left:28%;animation-delay:1s;animation-duration:24s"></div>
+        <div class="data-grain" style="left:35%;animation-delay:6s;animation-duration:20s"></div>
+        <div class="data-grain" style="left:42%;animation-delay:3s;animation-duration:19s"></div>
+        <div class="data-grain" style="left:50%;animation-delay:0.5s;animation-duration:21s"></div>
+        <div class="data-grain" style="left:57%;animation-delay:5s;animation-duration:17s"></div>
+        <div class="data-grain" style="left:63%;animation-delay:7s;animation-duration:23s"></div>
+        <div class="data-grain" style="left:70%;animation-delay:2.5s;animation-duration:25s"></div>
+        <div class="data-grain" style="left:77%;animation-delay:4.5s;animation-duration:15s"></div>
+        <div class="data-grain" style="left:84%;animation-delay:1.5s;animation-duration:20s"></div>
+        <div class="data-grain" style="left:91%;animation-delay:8s;animation-duration:18s"></div>
+        <div class="data-grain" style="left:8%;top:60%;animation-delay:3.5s;animation-duration:22s"></div>
+        <div class="data-grain" style="left:25%;top:70%;animation-delay:6.5s;animation-duration:16s"></div>
+        <div class="data-grain" style="left:47%;top:80%;animation-delay:9s;animation-duration:24s"></div>
+        <div class="data-grain" style="left:68%;top:55%;animation-delay:0.8s;animation-duration:21s"></div>
+        <div class="data-grain" style="left:88%;top:75%;animation-delay:4s;animation-duration:19s"></div>
+        <!-- Larger glowing cyan accent grains -->
+        <div class="data-grain accent-grain" style="left:15%;animation-delay:11s;animation-duration:28s"></div>
+        <div class="data-grain accent-grain" style="left:40%;top:40%;animation-delay:14s;animation-duration:32s"></div>
+        <div class="data-grain accent-grain" style="left:72%;animation-delay:7s;animation-duration:26s"></div>
+        <div class="data-grain accent-grain" style="left:90%;top:50%;animation-delay:18s;animation-duration:30s"></div>
+      </div>
+
+      <!-- Scientist Floating Pills (Nodes) -->
+      <div id="scientistCloud">
+         <!-- SVG Overlay for Neural Links -->
+         <svg id="neuralLinkSvg" width="100%" height="100%" style="position:absolute; top:0; left:0; pointer-events:none; z-index:0;">
+             <line id="neuralLine" x1="0" y1="0" x2="0" y2="0" stroke="#22D3EE" stroke-width="2" stroke-dasharray="5,5" class="cyan-neural-link hidden"></line>
+         </svg>
+         
+         <!-- Scientist Pills -->
+         <div class="scientist-pill" style="top: 15%; left: 10%;">
+            <div class="pill-core">Newton: Principia</div>
+            <div class="pill-expansion">
+               <p>Universal Gravitation, Laws of Motion. 1687.</p>
+               <div class="save-marker-check">✔ Saved</div>
+            </div>
+         </div>
+         <div class="scientist-pill" style="top: 80%; left: 15%;">
+            <div class="pill-core">Faraday: Induction</div>
+            <div class="pill-expansion">
+               <p>Electromagnetic induction, diamagnetism. 1831.</p>
+               <div class="save-marker-check">✔ Saved</div>
+            </div>
+         </div>
+         <div class="scientist-pill" style="top: 20%; left: 80%;">
+            <div class="pill-core">Curie: Radioactivity</div>
+            <div class="pill-expansion">
+               <p>Pioneering research on radioactivity. 1898.</p>
+               <div class="save-marker-check">✔ Saved</div>
+            </div>
+         </div>
+         <div class="scientist-pill" style="top: 75%; left: 85%;">
+            <div class="pill-core">Einstein: Relativity</div>
+            <div class="pill-expansion">
+               <p>Theory of relativity, mass-energy equivalence. 1905.</p>
+               <div class="save-marker-check">✔ Saved</div>
+            </div>
+         </div>
+      </div>
+
+      <!-- Interactive Controls -->
+      <button class="nav-btn left" onclick="moveRight()">&#10094;</button>
+      <button class="nav-btn right" onclick="moveLeft()">&#10095;</button>
+
+      <div class="ring-container" id="galleryTrack">
+        
+        <!-- Memory 1: Quantum Computing → physics mode -->
+        <article class="learning-card" data-topic="physics">
+          <div class="mastery-score">98%</div>
+          <div class="memory-content">
+            <div class="memory-date">Dec 14, 2024</div>
+            <h2 class="memory-title">Quantum Computing Basics</h2>
+            <p class="memory-desc">Mastered superposition, entanglement, and the fundamentals of qubits vs classical bits.</p>
+          </div>
+        </article>
+
+        <!-- Memory 2: Calculus → physics mode -->
+        <article class="learning-card" data-topic="physics">
+          <div class="mastery-score">92%</div>
+          <div class="memory-content">
+            <div class="memory-date">Nov 03, 2024</div>
+            <h2 class="memory-title">Advanced Calculus</h2>
+            <p class="memory-desc">Deep understanding of limits, derivatives, integrals, and the fundamental theorem.</p>
+          </div>
+        </article>
+
+        <!-- Memory 3: React → default mode -->
+        <article class="learning-card" data-topic="default">
+          <div class="mastery-score">85%</div>
+          <div class="memory-content">
+            <div class="memory-date">Oct 12, 2024</div>
+            <h2 class="memory-title">React Architecture</h2>
+            <p class="memory-desc">Explored component lifecycles, hooks, virtual DOM, and state management strategies.</p>
+          </div>
+        </article>
+
+        <!-- Memory 4: History → default mode -->
+        <article class="learning-card" data-topic="default">
+          <div class="mastery-score">100%</div>
+          <div class="memory-content">
+            <div class="memory-date">Sep 05, 2024</div>
+            <h2 class="memory-title">World History: Silk Road</h2>
+            <p class="memory-desc">Detailed mapping of trade networks, cultural exchange, and economic impact across Eurasia.</p>
+          </div>
+        </article>
+
+        <!-- Memory 5: Cellular Biology → biology mode -->
+        <article class="learning-card" data-topic="biology">
+          <div class="mastery-score">89%</div>
+          <div class="memory-content">
+            <div class="memory-date">Aug 22, 2024</div>
+            <h2 class="memory-title">Cellular Biology</h2>
+            <p class="memory-desc">Function and structure of organelles, cell division, and energy synthesis.</p>
+          </div>
+        </article>
+
+        <!-- Memory 6: Future Tech → physics mode -->
+        <article class="learning-card future-tech-card" data-topic="physics">
+          <div class="mastery-score goal-badge">GOAL</div>
+          <div class="memory-content">
+            <div class="memory-date">2026 — Active Research</div>
+            <h2 class="memory-title">🚀 Future Tech Vault</h2>
+            <p class="memory-desc">Atomic Physics, Bio-Digital Interfaces &amp; Next-Gen Microcontrollers — active 2026 research modules.</p>
+          </div>
+          <div class="future-tech-tags">
+            <span class="ft-tag">⚛️ Atomic Physics</span>
+            <span class="ft-tag">🧠 HMI / BCI</span>
+            <span class="ft-tag">📡 ESP32-S3</span>
+          </div>
+        </article>
+
+      </div>
+    </main>
+
+    <!-- The Scientist Research Archive -->
+    <section class="scientist-grid" id="researchArchive">
+      <div class="gallery-header">
+        <h2>Scientist Research Archive</h2>
+        <p style="color: var(--color-lavender); font-size: 0.9rem;">Sorted by Mastery Level</p>
+      </div>
+
+      <!-- 🌟 NEW: 100% Goal — Atomic Physics -->
+      <div class="scientist-box animate-float" data-mastery="100"
+           data-name="Atomic Physics Module" data-field="Nuclear Fusion / Subatomic Particles"
+           data-bio="Deep dive into the quantum world of subatomic particles — quarks, leptons, bosons — and the fusion reactions that power stars. This module targets 100% mastery as it underpins both quantum computing and future fusion energy research."
+           data-connection="Subatomic physics is the hardware layer below your Quantum Computing module. Mastering it unlocks advanced qubit design and fusion reactor modelling."
+           onclick="openProfile(this)">
+        <div class="mastery-badge goal-badge">TARGET 100%</div>
+        <div class="module-link-tag">⚛️ Atomic Physics — 2026</div>
+        <h3 class="scientist-name">Atomic Physics Module</h3>
+        <span class="scientist-field">Nuclear Fusion / Subatomic Particles</span>
+        <p class="scientist-notes">Deep dive into quarks, leptons, and the fusion reactions that power stars. 100% mastery target for 2026.</p>
+        <button class="share-btn" onclick="triggerShareBurst(event)">Make Public</button>
+      </div>
+
+      <!-- 🌟 NEW: 93% — Bio-Digital Interfaces -->
+      <div class="scientist-box animate-float" data-mastery="93"
+           data-name="Bio-Digital Interfaces" data-field="HMI / Brain-Computer Interfaces"
+           data-bio="Research on Human-Machine Interface (HMI) and Brain-Computer Interface (BCI) design. Covers neural signal processing, EEG data pipelines, and the engineering of intuitive feedback systems for medical devices and accessibility technology."
+           data-connection="BCI signal processing directly feeds into your Smart Patient Monitor project — EEG readings, feedback loops, and real-time alert logic."
+           onclick="openProfile(this)">
+        <div class="mastery-badge">93%</div>
+        <div class="module-link-tag">🧠 HMI / BCI — Active</div>
+        <h3 class="scientist-name">Bio-Digital Interfaces</h3>
+        <span class="scientist-field">HMI / Brain-Computer Interfaces</span>
+        <p class="scientist-notes">Research on neural signal processing, EEG pipelines, and intuitive HMI design for medical devices and accessibility tech.</p>
+        <button class="share-btn" onclick="triggerShareBurst(event)">Make Public</button>
+      </div>
+
+      <!-- 🌟 NEW: 87% — Next-Gen Microcontrollers -->
+      <div class="scientist-box animate-float" data-mastery="87"
+           data-name="Next-Gen Microcontrollers" data-field="ESP32-S3 / Raspberry Pi 5"
+           data-bio="Integration study of ESP32-S3 (dual-core with RISC-V, AI-capable NPU) and Raspberry Pi 5 (Broadcom BCM2712, 2.4GHz) for low-power embedded AI. Direct application in the Smart Patient Monitor project for real-time biosignal acquisition and wireless telemetry."
+           data-connection="ESP32-S3 handles the analog front-end for your Smart Patient Monitor, while RPi 5 runs the AI inference pipeline for anomaly detection."
+           onclick="openProfile(this)">
+        <div class="mastery-badge">87%</div>
+        <div class="module-link-tag">📡 Smart Patient Monitor</div>
+        <h3 class="scientist-name">Next-Gen Microcontrollers</h3>
+        <span class="scientist-field">ESP32-S3 / Raspberry Pi 5</span>
+        <p class="scientist-notes">ESP32-S3 for analog biosignal acquisition + Raspberry Pi 5 for on-device AI inference. Core stack for the Smart Patient Monitor project.</p>
+        <button class="share-btn" onclick="triggerShareBurst(event)">Make Public</button>
+      </div>
+
+      <!-- 98% Mastery - Ada Lovelace (Highest First) -->
+      <div class="scientist-box" data-mastery="98"
+           data-name="Ada Lovelace" data-field="Computer Science"
+           data-bio="Authored the first computer program. She recognized that the Analytical Engine could go beyond simple arithmetic to any kind of computation, making her the world's first programmer."
+           data-connection="Direct conceptual ancestor of every line of code you have written."
+           onclick="openProfile(this)">
+        <div class="mastery-badge">98%</div>
+        <h3 class="scientist-name">Ada Lovelace</h3>
+        <span class="scientist-field">Computer Science</span>
+        <p class="scientist-notes">Authored the first computer program. Recognized that the Analytical Engine could go beyond simple calculation to general-purpose computing.</p>
+        <button class="share-btn" onclick="triggerShareBurst(event)">Make Public</button>
+      </div>
+
+      <!-- 95% Mastery - Alan Turing -->
+      <div class="scientist-box turing-card" data-mastery="95"
+           data-name="Alan Turing" data-field="Mathematics / Crypto"
+           data-bio="Formalized the concepts of algorithm and computation with the Turing Machine. His Enigma-cracking work at Bletchley Park is estimated to have shortened World War 2 by 2 years."
+           data-connection="His Turing Machine is the direct theoretical model for the CPU running this page."
+           onclick="openProfile(this)">
+        <div class="mastery-badge">95%</div>
+        <h3 class="scientist-name">Alan Turing</h3>
+        <span class="scientist-field">Mathematics / Crypto</span>
+        <p class="scientist-notes">Formalized the concepts of algorithm and computation with the Turing machine. Father of theoretical computer science.</p>
+        <button class="share-btn" onclick="triggerShareBurst(event)">Make Public</button>
+        
+        <!-- Avatar Sync Hover Speech Bubble -->
+        <div class="ai-speech-tablet turing-bubble">
+           <div class="tablet-glow"></div>
+           <p>Turing's logic is the foundation of the React Architecture you mastered earlier.</p>
+        </div>
+      </div>
+
+      <!-- 94% Mastery - John von Neumann -->
+      <div class="scientist-box animate-float" data-mastery="94"
+           data-name="John von Neumann" data-field="Computer Architecture &amp; Game Theory"
+           data-bio="Pioneer of the modern computer architecture (von Neumann architecture) and a foundational figure in game theory, quantum mechanics, and cellular automata."
+           data-connection="Connects to &quot;Quantum Computing Basics&quot; card."
+           onclick="openProfile(this)">
+        <div class="mastery-badge">94%</div>
+        <div class="module-link-tag">🌌 Quantum Computing Basics</div>
+        <h3 class="scientist-name">John von Neumann</h3>
+        <span class="scientist-field">Computer Architecture &amp; Game Theory</span>
+        <p class="scientist-notes">Architect of the modern computer and game theory pioneer. His mathematical foundations are essential for understanding both classical and quantum computation.</p>
+        <button class="share-btn" onclick="triggerShareBurst(event)">Make Public</button>
+      </div>
+
+      <!-- 91% Mastery - Katherine Johnson -->
+      <div class="scientist-box animate-float" data-mastery="91"
+           data-name="Katherine Johnson" data-field="Orbital Mechanics &amp; Mathematics"
+           data-bio="Calculated orbital mechanics for NASA's first crewed spaceflights. Her mastery of complex mathematics was critical to the success of the Apollo moon landings."
+           data-connection="Provides the math for the &quot;Cylindrical Carousel&quot; motion."
+           onclick="openProfile(this)">
+        <div class="mastery-badge">91%</div>
+        <div class="module-link-tag">🔄 Cylindrical Carousel</div>
+        <h3 class="scientist-name">Katherine Johnson</h3>
+        <span class="scientist-field">Orbital Mechanics &amp; Mathematics</span>
+        <p class="scientist-notes">NASA mathematician whose calculations of orbital mechanics were critical to the success of the first and subsequent U.S. crewed spaceflights.</p>
+        <button class="share-btn" onclick="triggerShareBurst(event)">Make Public</button>
+      </div>
+
+      <!-- 90% Mastery - Marie Curie -->
+      <div class="scientist-box animate-float" data-mastery="90"
+           data-name="Marie Curie" data-field="Radioactivity"
+           data-bio="Conducted pioneering research on radioactivity. The first and only person to win Nobel Prizes in two different sciences — Physics (1903) and Chemistry (1911)."
+           data-connection="Her work on energy transformation mirrors the state-energy principles in your Quantum Computing module."
+           onclick="openProfile(this)">
+        <div class="mastery-badge">90%</div>
+        <h3 class="scientist-name">Marie Curie</h3>
+        <span class="scientist-field">Radioactivity</span>
+        <p class="scientist-notes">Conducted pioneering research on radioactivity. The first woman to win a Nobel Prize, she is the only person to win in two different scientific fields.</p>
+        <button class="share-btn" onclick="triggerShareBurst(event)">Make Public</button>
+      </div>
+
+      <!-- 88% Mastery - Nikola Tesla -->
+      <div class="scientist-box animate-float" data-mastery="88"
+           data-name="Nikola Tesla" data-field="Alternating Current &amp; Wireless Power"
+           data-bio="Invented the alternating current (AC) electrical system, the induction motor, and made foundational contributions to wireless transmission of energy. His vision of free global electricity decades ahead of its time."
+           data-connection="Links to &quot;Wireless Energy Transmission&quot; in the new Tech page."
+           onclick="openProfile(this)">
+        <div class="mastery-badge">88%</div>
+        <div class="module-link-tag">⚡ Wireless Energy Transmission</div>
+        <h3 class="scientist-name">Nikola Tesla</h3>
+        <span class="scientist-field">Alternating Current &amp; Wireless Power</span>
+        <p class="scientist-notes">Invented the AC motor and the Tesla coil. His polyphase AC system made long-distance electrical power transmission possible. Links to "Wireless Energy Transmission".</p>
+        <button class="share-btn" onclick="triggerShareBurst(event)">Make Public</button>
+      </div>
+
+      <!-- 85% Mastery - Isaac Newton (NEW) -->
+      <div class="scientist-box animate-float" data-mastery="85"
+           data-name="Isaac Newton" data-field="Classical Mechanics"
+           data-bio="Formulated the laws of motion and universal gravitation. Co-invented calculus (simultaneously with Leibniz). His Principia Mathematica is one of the most important scientific works ever written."
+           data-connection="Newton's laws underpin the physics engine in every game and simulation you will build in your Applied Mathematics module."
+           onclick="openProfile(this)">
+        <div class="mastery-badge">85%</div>
+        <div class="module-link-tag">📐 Applied Mathematics</div>
+        <h3 class="scientist-name">Isaac Newton</h3>
+        <span class="scientist-field">Classical Mechanics</span>
+        <p class="scientist-notes">Formulated the three laws of motion, invented calculus, and defined gravity. His work laid the foundation for 300 years of physics and engineering.</p>
+        <button class="share-btn" onclick="triggerShareBurst(event)">Make Public</button>
+      </div>
+
+      <!-- 82% Mastery - Michael Faraday -->
+      <div class="scientist-box faraday-card animate-float" data-mastery="82"
+           data-name="Michael Faraday" data-field="Electromagnetism"
+           data-bio="Discovered electromagnetic induction, laid the groundwork for the electric motor and transformer. His field lines concept was the foundation of Maxwell's equations."
+           data-connection="Every electric motor and transformer powering your devices traces back to Faraday."
+           onclick="openProfile(this)">
+        <div class="mastery-badge">82%</div>
+        <h3 class="scientist-name">Michael Faraday</h3>
+        <span class="scientist-field">Electromagnetism</span>
+        <p class="scientist-notes">Discovered electromagnetic induction principles that power modern turbines. His work fundamentally transformed our understanding of physics.</p>
+        <button class="share-btn" onclick="triggerShareBurst(event)">Make Public</button>
+      </div>
+
+      <!-- 80% Mastery - Albert Einstein (NEW) -->
+      <div class="scientist-box animate-float" data-mastery="80"
+           data-name="Albert Einstein" data-field="Theoretical Physics"
+           data-bio="Developed the special and general theories of relativity. Explained the photoelectric effect (earning him the Nobel Prize), and demonstrated mass-energy equivalence: E=mc²."
+           data-connection="Einstein's special relativity is why GPS satellites need time-correction algorithms — a direct application in your Systems Programming module."
+           onclick="openProfile(this)">
+        <div class="mastery-badge">80%</div>
+        <div class="module-link-tag">🛰️ Systems Programming</div>
+        <h3 class="scientist-name">Albert Einstein</h3>
+        <span class="scientist-field">Theoretical Physics</span>
+        <p class="scientist-notes">Developed special and general relativity, proved E=mc², and explained the photoelectric effect. Fundamentally changed how we understand space, time, and energy.</p>
+        <button class="share-btn" onclick="triggerShareBurst(event)">Make Public</button>
+      </div>
+
+      <!-- 76% Mastery - Rosalind Franklin -->
+      <div class="scientist-box franklin-card animate-float" data-mastery="76"
+           data-name="Rosalind Franklin" data-field="X-ray Crystallography"
+           data-bio="Took Photo 51, providing the critical data needed to verify the double-helix structure of DNA. Her pioneering work transformed our understanding of molecular biology."
+           data-connection="DNA's double helix is the world's most efficient data storage system — a direct inspiration for modern compression algorithms."
+           onclick="openProfile(this)">
+        <div class="mastery-badge">76%</div>
+        <h3 class="scientist-name">Rosalind Franklin</h3>
+        <span class="scientist-field">X-ray Crystallography</span>
+        <p class="scientist-notes">Took Photo 51, providing the critical data needed to verify the double-helix structure of DNA.</p>
+        <button class="share-btn" onclick="triggerShareBurst(event)">Make Public</button>
+      </div>
+
+      <!-- 74% Mastery - Stephen Hawking (NEW) -->
+      <div class="scientist-box animate-float" data-mastery="74"
+           data-name="Stephen Hawking" data-field="Cosmology / Black Holes"
+           data-bio="Proved that black holes emit thermal radiation (Hawking Radiation), making them the first synthesis of quantum mechanics and general relativity. Advanced our understanding of the origin and fate of the universe."
+           data-connection="Hawking Radiation is studied in your Quantum Computing module as a model for information entropy and qubit decoherence."
+           onclick="openProfile(this)">
+        <div class="mastery-badge">74%</div>
+        <div class="module-link-tag">🌌 Quantum Computing</div>
+        <h3 class="scientist-name">Stephen Hawking</h3>
+        <span class="scientist-field">Cosmology / Black Holes</span>
+        <p class="scientist-notes">Proved black holes emit radiation and have a temperature. Combined quantum mechanics with general relativity to advance cosmology, despite being diagnosed with ALS at 21.</p>
+        <button class="share-btn" onclick="triggerShareBurst(event)">Make Public</button>
+      </div>
+    </section>
+
+    <!-- Full-Screen Profile Overlay -->
+    <div class="scientist-profile-overlay" id="profileOverlay" onclick="closeProfile()">
+      <button class="profile-close-btn" onclick="closeProfile()">&times;</button>
+      <div class="profile-inner" onclick="event.stopPropagation()">
+        <div class="profile-glow-bg"></div>
+        <div class="profile-mastery" id="profileMastery"></div>
+        <h2 class="profile-name" id="profileName"></h2>
+        <span class="scientist-field profile-field" id="profileField"></span>
+        <p class="profile-bio" id="profileBio"></p>
+        <div class="profile-connection">
+          <span class="profile-connection-label">🔗 Knowledge Connection</span>
+          <p id="profileConnection"></p>
+        </div>
+        <button class="share-btn profile-share-btn" onclick="document.getElementById('profileOverlay').click(); triggerShareBurst(event);">Make Public</button>
+      </div>
+    </div>
+
+    <script>
+      // 1. Initial Math
+      const cards = document.querySelectorAll('.learning-card');
+      const numCards = cards.length;
+      
+      // Determine mastery dynamically based on score
+      cards.forEach(card => {
+        const scoreEl = card.querySelector('.mastery-score');
+        if (scoreEl) {
+            const score = parseInt(scoreEl.innerText.replace('%', ''));
+            if (score >= 90) {
+                card.dataset.mastery = 'high';
+            } else if (score >= 70) {
+                card.dataset.mastery = 'medium';
+            } else {
+                card.dataset.mastery = 'low';
+            }
+        }
+      });
+      
+      // Calculate perfect mathematical circle divisions
+      const degreeStep = 360 / numCards; 
+      const radius = 800; // Pushes cards out to prevent overlapping
+      
+      // Initialize the 3D Ring
+      const setupMemoryPalace = () => {
+        cards.forEach((card, i) => {
+          gsap.set(card, {
+            rotationY: i * degreeStep,
+            transformOrigin: `50% 50% -${radius}px`, // Creates the circular pivot
+            z: -radius // translateZ pushes the cards away from each other
+          });
+          card.dataset.angle = i * degreeStep;
+        });
+        
+        // Initial Focus state
+        updateCardOpacity(0);
+      };
+
+      // ── Friction-Lock Carousel (Inertia Dampening) ──────────────────────
+      let currentRotation = 0;
+      let isAnimating    = false; // Busy-lock: blocks clicks mid-spin
+      let lastClickTime  = 0;     // Throttle: min 400ms between triggers
+
+      const rotatePalace = (direction) => {
+        const now = Date.now();
+
+        // 1. THROTTLE — drop clicks that arrive too fast
+        if (now - lastClickTime < 400) return;
+        lastClickTime = now;
+
+        // 2. BUSY-LOCK — never stack a new spin on top of an active one
+        if (isAnimating) return;
+        isAnimating = true;
+
+        // 3. STEP CALCULATION — advance by exactly one card
+        const step = 360 / numCards;
+        currentRotation += (direction === 'next' ? -step : step);
+
+        // 4. SNAP CORRECTION — round to the nearest exact card stop
+        //    This kills any floating-point drift that could cause off-center landings
+        const snappedRotation = Math.round(currentRotation / step) * step;
+        currentRotation = snappedRotation;
+
+        // 5. FRICTION-LOCK TWEEN — heavy easing guarantees a dead stop
+        gsap.to(".ring-container", {
+          rotationY: currentRotation,
+          duration: 1.5,
+          ease: "expo.out",   // Exponential deceleration — near-zero velocity at end
+          overwrite: "all",   // Kill any previous in-flight animation immediately
+          onUpdate: function() {
+            updateCardOpacity(this.targets()[0]._gsap.rotationY);
+          },
+          onComplete: () => {
+            isAnimating = false; // Release lock — next click now allowed
+
+            // Fine-tune: micro-snap to pixel-perfect card position
+            gsap.set(".ring-container", { rotationY: currentRotation });
+
+            triggerBackgroundRipple();
+
+            // Context-Aware Nebula Mode Sync
+            const activeCard = document.querySelector('.learning-card.active');
+            const topic = activeCard?.dataset?.topic || 'default';
+            if (window.setNebulaMode) window.setNebulaMode(topic);
+          }
+        });
+      };
+
+      function triggerBackgroundRipple() {
+        const stage = document.getElementById('palaceContainer');
+        const ripple = document.createElement('div');
+        ripple.className = 'nebula-ripple';
+        stage.appendChild(ripple);
+        
+        // Get the glow color from the active card
+        const activeCard = document.querySelector('.learning-card.active');
+        const color = activeCard ? getComputedStyle(activeCard).getPropertyValue('--glow-color-rgb').trim() : '34, 211, 238';
+        
+        ripple.style.background = `radial-gradient(circle, rgba(${color}, 0.15) 0%, transparent 70%)`;
+        
+        gsap.fromTo(ripple, 
+          { scale: 0.5, opacity: 1 },
+          { scale: 2.5, opacity: 0, duration: 1.5, ease: "sine.out", onComplete: () => ripple.remove() }
+        );
+      }
+
+      // Direction bindings for Left/Right buttons
+      function moveLeft() {
+        rotatePalace('prev');
+      }
+
+      function moveRight() {
+        rotatePalace('next');
+      }
+
+      function updateCardOpacity(rotationVal) {
+        cards.forEach(card => {
+            const cardBaseAngle = parseFloat(card.dataset.angle);
+            const absoluteAngle = cardBaseAngle + rotationVal;
+            
+            // Normalize between -180 and 180 degrees
+            let normalizedAngle = absoluteAngle % 360;
+            if (normalizedAngle > 180) normalizedAngle -= 360;
+            if (normalizedAngle < -180) normalizedAngle += 360;
+            
+            const distDegrees = Math.abs(normalizedAngle);
+            const opacityAmount = 1 - (distDegrees / 180);
+
+            if (distDegrees < 5) {
+                // Focal Point: Front and center (GSAP will handle movement, just visual effects here)
+                card.style.opacity = '1';
+                card.style.filter = 'blur(0px)';
+                
+                if (!card.classList.contains('active')) {
+                  card.classList.add('active');
+                  if (navigator.vibrate) navigator.vibrate(15);
+                }
+            } else {
+                // Background Cards Details
+                const blurAmount = Math.min(12, (distDegrees / 180) * 12);
+                card.style.filter = `blur(${blurAmount}px)`;
+                card.style.opacity = opacityAmount.toString();
+                card.classList.remove('active');
+            }
+        });
+      }
+
+      // Initialize initial layout and focus on page load
+      setupMemoryPalace();
+
+      // Antigravity drift for all research cards
+      gsap.to(".learning-card", {
+        y: "random(-15, 15)", // Random floating height
+        rotationZ: "random(-2, 2)", // Slight weightless tilt
+        duration: "random(2, 4)",
+        repeat: -1,
+        yoyo: true,
+        ease: "sine.inOut",
+        stagger: 0.2 // Each card moves independently for a natural feel
+      });
+
+      // Figure-8 Orbital Drift for Scientist Pills
+      gsap.to(".scientist-pill", {
+        y: "random(-40, 40)", // Floating vertical drift
+        x: "random(-20, 20)", // Floating horizontal drift
+        duration: "random(3, 5)",
+        repeat: -1,
+        yoyo: true,
+        ease: "sine.inOut",
+        stagger: {
+          each: 0.5,
+          from: "random"
+        }
+      });
+
+      // Center Card Glow Sync
+      gsap.to(".learning-card.active", {
+        boxShadow: "0 0 30px rgba(34, 211, 238, 0.6)",
+        borderColor: "rgba(34, 211, 238, 0.8)",
+        duration: 2,
+        repeat: -1,
+        yoyo: true
+      });
+
+      // Neural Link Hover Logic
+      const scientistPills = document.querySelectorAll('.scientist-pill');
+      const neuralLinkSvg = document.getElementById('neuralLinkSvg');
+      const neuralLine = document.getElementById('neuralLine');
+
+      scientistPills.forEach(pill => {
+          pill.addEventListener('mouseenter', () => {
+              // Target the active center card
+              const activeCard = document.querySelector('.learning-card.active');
+              if (activeCard && neuralLinkSvg && neuralLine) {
+                  const pillRect = pill.getBoundingClientRect();
+                  const cardRect = activeCard.getBoundingClientRect();
+                  const svgRect = neuralLinkSvg.getBoundingClientRect();
+                  
+                  // Compute center of pill and center of card
+                  const pX = pillRect.left + (pillRect.width / 2) - svgRect.left;
+                  const pY = pillRect.top + (pillRect.height / 2) - svgRect.top;
+                  const cX = cardRect.left + (cardRect.width / 2) - svgRect.left;
+                  const cY = cardRect.top + (cardRect.height / 2) - svgRect.top;
+                  
+                  neuralLine.setAttribute('x1', pX);
+                  neuralLine.setAttribute('y1', pY);
+                  neuralLine.setAttribute('x2', cX);
+                  neuralLine.setAttribute('y2', cY);
+                  
+                  neuralLine.classList.remove('hidden');
+              }
+          });
+          
+          pill.addEventListener('mouseleave', () => {
+              if (neuralLine) neuralLine.classList.add('hidden');
+          });
+          
+          // Click to toggle the save marker
+          pill.addEventListener('click', () => {
+              const marker = pill.querySelector('.save-marker-check');
+              // Just simulate saving visually
+              if (marker && marker.classList.contains('hidden')) {
+                  marker.classList.remove('hidden');
+              } else if (marker && !marker.classList.contains('hidden')) {
+                  marker.classList.add('hidden');
+              }
+          });
+      });
+
+      // Interactive Tilt for the Palace
+      const palaceContainer = document.getElementById('palaceContainer');
+      document.addEventListener('mousemove', (e) => {
+        // Calculate tilt based on cursor position relative to center
+        const xPos = (e.clientX / window.innerWidth - 0.5) * 25; // max 12.5 deg tilt
+        const yPos = (e.clientY / window.innerHeight - 0.5) * -25;
+        
+        gsap.to(palaceContainer, {
+            rotationY: xPos,
+            rotationX: yPos,
+            duration: 1.5,
+            ease: "power2.out",
+            transformPerspective: 1200,
+            transformOrigin: "center center"
+        });
+      });
+      
+      // Support Device Orientation for Mobile Tilt
+      window.addEventListener("deviceorientation", (e) => {
+          if(!e.beta || !e.gamma) return;
+          const xPos = Math.max(-15, Math.min(15, e.gamma / 2));
+          const yPos = Math.max(-15, Math.min(15, (e.beta - 45) / -2));
+          
+          gsap.to(palaceContainer, {
+              rotationY: xPos,
+              rotationX: yPos,
+              duration: 1,
+              ease: "power2.out"
+          });
+      });
+
+      // --- Neural Pulse Share Logic (Knowledge Graph Transit) --- //
+      function triggerShareBurst(event) {
+        event.stopPropagation(); // Don't open profile overlay
+        const btn = event.currentTarget;
+        const box = btn.closest('.scientist-box');
+        const scientistName = box?.dataset?.name || 'Scientist';
+        const scientistModule = box?.dataset?.connection || 'your knowledge graph';
+        const btnRect = btn.getBoundingClientRect();
+        const burstRadius = 40;
+        const numParticles = 12;
+
+        // Visual feedback on button
+        btn.textContent = "✔ Mapped!";
+        btn.style.borderColor = "rgba(34, 211, 238, 0.8)";
+        btn.style.color = "#22D3EE";
+        btn.style.boxShadow = "0 0 20px rgba(34,211,238,0.4)";
+        setTimeout(() => {
+          btn.textContent = "Make Public";
+          btn.style.borderColor = "";
+          btn.style.color = "";
+          btn.style.boxShadow = "";
+        }, 2500);
+
+        // Radial particle burst
+        for (let i = 0; i < numParticles; i++) {
+          const particle = document.createElement('div');
+          particle.className = 'burst-particle';
+          document.body.appendChild(particle);
+          const startX = btnRect.left + btnRect.width / 2;
+          const startY = btnRect.top + btnRect.height / 2;
+          const angle = (Math.PI * 2) * (i / numParticles);
+          const targetX = startX + Math.cos(angle) * burstRadius;
+          const targetY = startY + Math.sin(angle) * burstRadius;
+          gsap.fromTo(particle,
+            { x: startX, y: startY, scale: 1, opacity: 1 },
+            { x: targetX, y: targetY, scale: 0, opacity: 0,
+              duration: 0.6 + Math.random() * 0.2, ease: "power2.out",
+              onComplete: () => particle.remove() }
+          );
+        }
+
+        // --- Light Trail Node --- //
+        const btnCenterX = btnRect.left + btnRect.width / 2;
+        const btnCenterY = btnRect.top + btnRect.height / 2;
+
+        // Named node label that flies to the graph
+        const dataNode = document.createElement('div');
+        dataNode.className = 'data-burst-node neural-pulse-node';
+        dataNode.textContent = scientistName;
+        dataNode.style.cssText = `
+          position: fixed; z-index: 9999;
+          background: rgba(34,211,238,0.15);
+          border: 1px solid #22D3EE;
+          color: #22D3EE;
+          font-size: 0.7rem;
+          font-weight: 700;
+          letter-spacing: 1px;
+          padding: 4px 10px;
+          border-radius: 20px;
+          pointer-events: none;
+          white-space: nowrap;
+          box-shadow: 0 0 14px rgba(34,211,238,0.5), 0 0 30px rgba(34,211,238,0.2);
+        `;
+        document.body.appendChild(dataNode);
+
+        // Glowing comet trail
+        const dataTrail = document.createElement('div');
+        dataTrail.className = 'data-burst-trail';
+        document.body.appendChild(dataTrail);
+
+        // Knowledge Graph port is the top-center of the screen (simulating graph node)
+        const graphX = window.innerWidth / 2;
+        const graphY = 30;
+
+        gsap.timeline()
+          .fromTo(dataNode,
+            { x: btnCenterX, y: btnCenterY, scale: 0.6, opacity: 0 },
+            { x: btnCenterX, y: btnCenterY, scale: 1, opacity: 1, duration: 0.2, ease: "power2.out" }
+          )
+          .to(dataNode, {
+            x: graphX, y: graphY, scale: 0.7,
+            duration: 1.3, ease: "power3.inOut",
+            onComplete: () => {
+              // Flash at the graph node on arrival
+              gsap.to(dataNode, { scale: 1.5, opacity: 0, duration: 0.4, ease: "power2.out",
+                onComplete: () => dataNode.remove() });
+
+              // Trigger nebula pulse
+              if (window.triggerNebulaPulse) window.triggerNebulaPulse();
+
+              // ---- AI Mentor Speech Bubble Update ---- //
+              showAIMentorMessage(scientistName, scientistModule);
+            }
+          });
+
+        // Trail follows the named node
+        gsap.fromTo(dataTrail,
+          { x: btnCenterX, y: btnCenterY, opacity: 0.8, scaleX: 0.1 },
+          { x: graphX, y: graphY, opacity: 0, scaleX: 1.8,
+            duration: 1.3, ease: "power3.inOut",
+            onComplete: () => dataTrail.remove() }
+        );
+      }
+
+      // --- AI Mentor Speech Bubble Updater --- //
+      function showAIMentorMessage(name, connection) {
+        // Find or create the persistent AI mentor toast
+        let toast = document.getElementById('aiMentorToast');
+        if (!toast) {
+          toast = document.createElement('div');
+          toast.id = 'aiMentorToast';
+          toast.style.cssText = `
+            position: fixed;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 8999;
+            max-width: 520px;
+            width: 90vw;
+            background: rgba(15, 23, 42, 0.92);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(34, 211, 238, 0.45);
+            border-radius: 16px;
+            padding: 1rem 1.4rem;
+            color: #E2E8F0;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5), 0 0 20px rgba(34,211,238,0.1);
+            pointer-events: none;
+          `;
+          document.body.appendChild(toast);
+        }
+
+        // Personalized mapping message
+        toast.innerHTML = `
+          <span style="color:#22D3EE;font-weight:700;font-size:0.78rem;text-transform:uppercase;letter-spacing:1.5px;display:block;margin-bottom:0.4rem;">
+            🧠 AI Mentor
+          </span>
+          <strong style="color:#fff;">${name}</strong>'s research has been successfully mapped to your Knowledge Graph. ${connection}
+        `;
+
+        gsap.fromTo(toast,
+          { opacity: 0, y: -10 },
+          { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" }
+        );
+
+        // Auto-hide after 5s
+        clearTimeout(toast._hideTimer);
+        toast._hideTimer = setTimeout(() => {
+          gsap.to(toast, { opacity: 0, y: -10, duration: 0.4, ease: "power2.in",
+            onComplete: () => { if (toast.parentNode) toast.remove(); }
+          });
+        }, 5000);
+      }
+
+      // --- Grid Focus State Logic + Profile Launch --- //
+      const gallery = document.getElementById('researchArchive');
+      const scientistGridCards = document.querySelectorAll('.scientist-box');
+      
+      // On card click, openProfile handles it. We keep the dim logic below:
+      scientistGridCards.forEach(card => {
+        card.addEventListener('click', (e) => {
+          // Ignore clicks specifically on the share button
+          if (e.target.tagName.toLowerCase() === 'button') return;
+          
+          const isFocused = card.classList.contains('focused');
+          scientistGridCards.forEach(c => c.classList.remove('focused'));
+          
+          if (!isFocused) {
+            card.classList.add('focused');
+            gallery.classList.add('focus-active');
+          } else {
+            gallery.classList.remove('focus-active');
+          }
+        });
+      });
+
+      // --- Profile Overlay Open/Close --- //
+      function openProfile(box) {
+        const overlay = document.getElementById('profileOverlay');
+        document.getElementById('profileName').textContent = box.dataset.name || '';
+        document.getElementById('profileField').textContent = box.dataset.field || '';
+        document.getElementById('profileBio').textContent = box.dataset.bio || '';
+        document.getElementById('profileConnection').textContent = box.dataset.connection || '';
+        document.getElementById('profileMastery').textContent = (box.dataset.mastery || '') + '%';
+
+        overlay.classList.add('active');
+
+        // Unfold animation
+        const inner = overlay.querySelector('.profile-inner');
+        gsap.fromTo(inner,
+          { scale: 0.2, opacity: 0, rotationX: -30 },
+          { scale: 1, opacity: 1, rotationX: 0, duration: 0.7, ease: "back.out(1.4)" }
+        );
+      }
+
+      function closeProfile() {
+        const overlay = document.getElementById('profileOverlay');
+        const inner = overlay.querySelector('.profile-inner');
+        gsap.to(inner,
+          { scale: 0.2, opacity: 0, rotationX: -30, duration: 0.4, ease: "power3.in",
+            onComplete: () => overlay.classList.remove('active') }
+        );
+      }
+
+      // --- Neural Nebula (Three.js Particle System) --- //
+      (function initNeuralNebula() {
+        const NUM_PARTICLES = 5000;
+        let mouseX = 0, mouseY = 0;  // normalized -1 to +1
+        let scrollParallaxY = 0;
+
+        // Track mouse for drift
+        window.addEventListener('mousemove', (e) => {
+          mouseX = (e.clientX / window.innerWidth - 0.5) * 2;
+          mouseY = (e.clientY / window.innerHeight - 0.5) * 2;
+        }, { passive: true });
+
+        // Scroll → atmospheric depth shift (5px/100px)
+        window.addEventListener('scroll', () => {
+          scrollParallaxY = window.scrollY * 0.05;
+          // Shift body background color from Navy to Galactic Purple as user scrolls
+          const scrollRatio = Math.min(1, window.scrollY / 1000);
+          const r1 = 11, g1 = 17, b1 = 32;  // #0B1120 Deep Navy
+          const r2 = 30, g2 = 27, b2 = 75;  // #1E1B4B Galactic Purple
+          const r = Math.round(r1 + (r2 - r1) * scrollRatio);
+          const g = Math.round(g1 + (g2 - g1) * scrollRatio);
+          const b = Math.round(b1 + (b2 - b1) * scrollRatio);
+          document.body.style.background = `rgb(${r}, ${g}, ${b})`;
+        }, { passive: true });
+
+        // Setup Three.js Scene
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+        camera.position.z = 600;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.domElement.style.position = 'fixed';
+        renderer.domElement.style.top = '0';
+        renderer.domElement.style.left = '0';
+        renderer.domElement.style.zIndex = '0';
+        renderer.domElement.style.pointerEvents = 'none';
+        document.body.insertBefore(renderer.domElement, document.body.firstChild);
+
+        // Remove old 2D canvas if it still exists
+        const oldCanvas = document.getElementById('nebulaCanvas');
+        if (oldCanvas) oldCanvas.remove();
+
+        // --- Particle Geometry --- //
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(NUM_PARTICLES * 3);
+        const colors = new Float32Array(NUM_PARTICLES * 3);
+        const sizes = new Float32Array(NUM_PARTICLES);
+
+        for (let i = 0; i < NUM_PARTICLES; i++) {
+          const i3 = i * 3;
+          // Positions: spread across deep space volume
+          positions[i3]     = (Math.random() - 0.5) * 2000;
+          positions[i3 + 1] = (Math.random() - 0.5) * 1500;
+          positions[i3 + 2] = (Math.random() - 0.5) * 1000;
+
+          // Colors: mix of white stars and cyan neural nodes
+          const isCyan = Math.random() > 0.85;
+          colors[i3]     = isCyan ? 0.13 : 0.9;
+          colors[i3 + 1] = isCyan ? 0.82 : 0.9;
+          colors[i3 + 2] = isCyan ? 0.93 : 1.0;
+
+          sizes[i] = isCyan ? Math.random() * 3.0 + 1.5 : Math.random() * 1.5 + 0.3;
+        }
+
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+        // Shader material for glowing stars
+        const material = new THREE.ShaderMaterial({
+          vertexShader: `
+            attribute float size;
+            attribute vec3 color;
+            varying vec3 vColor;
+            void main() {
+              vColor = color;
+              vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+              gl_PointSize = size * (400.0 / -mvPosition.z);
+              gl_Position = projectionMatrix * mvPosition;
+            }
+          `,
+          fragmentShader: `
+            varying vec3 vColor;
+            void main() {
+              float d = distance(gl_PointCoord, vec2(0.5));
+              if (d > 0.5) discard;
+              float alpha = 1.0 - smoothstep(0.3, 0.5, d);
+              gl_FragColor = vec4(vColor, alpha);
+            }
+          `,
+          transparent: true,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+          vertexColors: true
+        });
+
+        const particles = new THREE.Points(geometry, material);
+        scene.add(particles);
+
+        // Pulse state
+        let pulseActive = false;
+        let pulseTime = 0;
+        const pulsePositions = geometry.attributes.position.array;
+        const originalSizes = sizes.slice();
+
+        // Expose global trigger for Data Pulse (called from Make Public)
+        window.triggerNebulaPulse = function() {
+          pulseActive = true;
+          pulseTime = 0;
+        };
+
+        // --- Context-Aware Mode System --- //
+        let currentMode = 'default';       // 'default' | 'biology' | 'physics' | 'frustration'
+        let modeTransitionSpeed = 0.02;    // Lerp speed for smooth particle transitions
+        const targetPositions = positions.slice(); // Start with same as original
+        const originalPositions = positions.slice();
+
+        // Pre-compute DNA helix target positions
+        const dnaPositions = new Float32Array(NUM_PARTICLES * 3);
+        for (let i = 0; i < NUM_PARTICLES; i++) {
+          const t = (i / NUM_PARTICLES) * Math.PI * 40;  // 20 full turns
+          const helixRadius = 180;
+          const strand = i % 2 === 0 ? 0 : Math.PI;     // Two strands 180° apart
+          dnaPositions[i*3]   = Math.cos(t + strand) * helixRadius;
+          dnaPositions[i*3+1] = (i / NUM_PARTICLES - 0.5) * 1400;
+          dnaPositions[i*3+2] = Math.sin(t + strand) * helixRadius;
+        }
+
+        // Pre-compute gravitational well target positions
+        const physicsPositions = new Float32Array(NUM_PARTICLES * 3);
+        for (let i = 0; i < NUM_PARTICLES; i++) {
+          const r = Math.random() * 600 + 10;
+          const theta = Math.random() * Math.PI * 2;
+          const phi = (Math.random() - 0.5) * Math.PI * 0.3; // Flatten into a disk
+          physicsPositions[i*3]   = r * Math.cos(theta) * Math.cos(phi);
+          physicsPositions[i*3+1] = r * Math.sin(phi) * 0.5;
+          physicsPositions[i*3+2] = r * Math.sin(theta) * Math.cos(phi);
+        }
+
+        // Expose global mode setter
+        window.setNebulaMode = function(mode) {
+          currentMode = mode;
+
+          if (mode === 'biology') {
+            document.body.style.transition = 'background 2s ease';
+            document.body.style.background = '#071a10'; // Deep biological green-black
+            modeTransitionSpeed = 0.015;
+            for (let i = 0; i < NUM_PARTICLES * 3; i++) targetPositions[i] = dnaPositions[i];
+
+          } else if (mode === 'physics') {
+            document.body.style.transition = 'background 2s ease';
+            document.body.style.background = '#0a0b1a'; // Deep cosmic navy
+            modeTransitionSpeed = 0.012;
+            for (let i = 0; i < NUM_PARTICLES * 3; i++) targetPositions[i] = physicsPositions[i];
+
+          } else if (mode === 'frustration') {
+            document.body.style.transition = 'background 3s ease';
+            document.body.style.background = '#100b17'; // Calming deep violet
+            modeTransitionSpeed = 0.006; // Very slow drift for calm effect
+            for (let i = 0; i < NUM_PARTICLES * 3; i++) targetPositions[i] = originalPositions[i];
+
+          } else {
+            // Reset to default deep nebula
+            document.body.style.transition = 'background 2s ease';
+            document.body.style.background = '#0B1120';
+            modeTransitionSpeed = 0.02;
+            for (let i = 0; i < NUM_PARTICLES * 3; i++) targetPositions[i] = originalPositions[i];
+          }
+        };
+
+        // Animation loop
+        const clock = new THREE.Clock();
+        function animate() {
+          requestAnimationFrame(animate);
+          const elapsed = clock.getElapsedTime();
+
+          // --- Mode-based rotation & drift --- //
+          if (currentMode === 'frustration') {
+            // Calm slow pulse: very slow rotation + gentle breathing scale
+            particles.rotation.y = elapsed * 0.001;
+            particles.rotation.x = elapsed * 0.0005;
+            const breathe = Math.sin(elapsed * 0.4) * 0.05 + 1;  // slow 0.4Hz breath
+            particles.scale.setScalar(breathe);
+          } else if (currentMode === 'biology') {
+            // Slow, reverent rotation showing the helix structure
+            particles.rotation.y = elapsed * 0.005 + mouseX * 0.03;
+            particles.rotation.x = mouseY * -0.02;
+            particles.scale.setScalar(1);
+          } else if (currentMode === 'physics') {
+            // Slow disk spin mimicking an accretion disk
+            particles.rotation.y = elapsed * 0.015 + mouseX * 0.05;
+            particles.rotation.x = 0.3 + mouseY * -0.02; // Tilted plane view
+            particles.scale.setScalar(1);
+          } else {
+            // Default: gentle ambient drift + mouse response
+            particles.rotation.y = elapsed * 0.008 + mouseX * 0.06;
+            particles.rotation.x = elapsed * 0.003 - mouseY * 0.04;
+            particles.scale.setScalar(1);
+          }
+
+          // Smooth particle position lerp toward target (DNA, gravity well, etc.)
+          if (currentMode !== 'default') {
+            const posAttr = geometry.attributes.position;
+            for (let i = 0; i < NUM_PARTICLES * 3; i++) {
+              posAttr.array[i] += (targetPositions[i] - posAttr.array[i]) * modeTransitionSpeed;
+            }
+            posAttr.needsUpdate = true;
+          }
+
+          // Scroll parallax: shift particles vertically
+          particles.position.y = scrollParallaxY * 2;
+
+          // Data Pulse: ripple through sizes when triggered
+          if (pulseActive) {
+            pulseTime += 0.04;
+            const sizeAttr = geometry.attributes.size;
+            for (let i = 0; i < NUM_PARTICLES; i++) {
+              const dist = Math.sqrt(
+                pulsePositions[i*3]   ** 2 +
+                pulsePositions[i*3+1] ** 2 +
+                pulsePositions[i*3+2] ** 2
+              ) / 100;
+              const wave = Math.sin(dist - pulseTime * 5) * 0.5 + 0.5;
+              sizeAttr.array[i] = originalSizes[i] + wave * 3.5;
+            }
+            sizeAttr.needsUpdate = true;
+            if (pulseTime > 3) {
+              // Reset when done
+              for (let i = 0; i < NUM_PARTICLES; i++) sizeAttr.array[i] = originalSizes[i];
+              sizeAttr.needsUpdate = true;
+              pulseActive = false;
+            }
+          }
+
+          renderer.render(scene, camera);
+        }
+
+        animate();
+
+        // Handle resize
+        window.addEventListener('resize', () => {
+          camera.aspect = window.innerWidth / window.innerHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+      })();
+    </script>
+  </body>
+</html>
